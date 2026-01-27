@@ -1,0 +1,74 @@
+[package]
+name = "qcomm-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Core library for Quantum Communicator - PQC chat with BitChat compatibility"
+
+[features]
+default = ["std", "native-crypto"]
+std = []
+native-crypto = [
+    "dep:pqcrypto-mlkem",
+    "dep:pqcrypto-sphincsplus",
+    "dep:x25519-dalek",
+    "dep:btleplug",
+    "dep:tokio-tungstenite",
+    "dep:reqwest",
+    "dep:tokio",
+    "dep:async-trait",
+    "dep:futures-util",
+]
+qrng = []           # Enable hardware QRNG support
+qkd = []            # Enable QKD integration
+validator = []      # Enable validator mode
+ai-agent = []       # Enable AI agent features
+
+[dependencies]
+# Async runtime (native only - requires mio)
+tokio = { workspace = true, optional = true }
+async-trait = { workspace = true, optional = true }
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Post-quantum cryptography (native only - C bindings)
+pqcrypto-mlkem = { workspace = true, optional = true }
+pqcrypto-sphincsplus = { workspace = true, optional = true }
+
+# Classical crypto (for hybrid and BitChat compat)
+sha2.workspace = true
+hkdf.workspace = true
+aes-gcm.workspace = true
+x25519-dalek = { workspace = true, optional = true }
+rand.workspace = true
+zeroize.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+hex.workspace = true
+base64.workspace = true
+
+# Networking (native only)
+reqwest = { workspace = true, optional = true }
+tokio-tungstenite = { workspace = true, optional = true }
+futures-util = { workspace = true, optional = true }
+
+# BLE (native only)
+btleplug = { workspace = true, optional = true }
+
+# STARK proofs (post-quantum event authentication) - pure Rust, WASM compatible
+winterfell.workspace = true
+winter-crypto.workspace = true
+winter-math.workspace = true
+winter-utils.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

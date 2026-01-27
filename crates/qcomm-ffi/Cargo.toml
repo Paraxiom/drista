@@ -1,0 +1,16 @@
+[package]
+name = "qcomm-ffi"
+version.workspace = true
+edition.workspace = true
+description = "C FFI bindings for Quantum Communicator (mobile)"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+qcomm-core = { path = "../qcomm-core" }
+uniffi.workspace = true
+thiserror.workspace = true
+
+[build-dependencies]
+uniffi = { workspace = true, features = ["build"] }

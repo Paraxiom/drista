@@ -1,0 +1,13 @@
+{
+  "name": "nostr-qh-bridge",
+  "version": "1.0.0",
+  "description": "NIP-01 Nostr bridge to QuantumHarmony Mesh Forum pallet",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.0.0"
+  }
+}

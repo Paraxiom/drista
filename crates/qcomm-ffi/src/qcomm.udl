@@ -1,0 +1,72 @@
+namespace qcomm {
+    // Global functions
+    string version();
+    boolean is_qrng_available();
+    [Throws=QCommError]
+    sequence<u8> get_random_bytes(u32 count);
+};
+
+[Error]
+enum QCommError {
+    "Crypto",
+    "Transport",
+    "Protocol",
+    "Config",
+    "Internal",
+};
+
+interface FFIIdentity {
+    [Throws=QCommError, Name=generate]
+    constructor();
+
+    string fingerprint();
+    sequence<u8> public_key();
+
+    [Throws=QCommError]
+    sequence<u8> sign(sequence<u8> message);
+
+    [Throws=QCommError]
+    boolean verify(sequence<u8> message, sequence<u8> signature);
+};
+
+interface FFIMessage {
+    [Name=text]
+    constructor(string sender, string recipient, string text);
+
+    [Getter]
+    string id();
+    [Getter]
+    string sender();
+    [Getter]
+    string recipient();
+    [Getter]
+    string? text();
+    [Getter]
+    u64 timestamp();
+    [Getter]
+    boolean pqc_encrypted();
+};
+
+interface FFIChannel {
+    [Name=dm]
+    constructor(string our_fingerprint, string their_fingerprint);
+
+    [Name=group]
+    constructor(string name, string creator);
+
+    [Name=forum]
+    constructor(string name);
+
+    [Getter]
+    string id();
+    [Getter]
+    string name();
+    [Getter]
+    string channel_type();
+    [Getter]
+    boolean encrypted();
+    [Getter]
+    boolean pqc_enabled();
+    [Getter]
+    u32 unread_count();
+};

@@ -1,0 +1,73 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/qcomm-core",
+    "crates/qcomm-wasm",
+    "crates/qcomm-ffi",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["QuantumHarmony Team"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/quantumharmony/quantum-communicator"
+
+[workspace.dependencies]
+# Core
+tokio = { version = "1.43", features = ["full"] }
+async-trait = "0.1"
+thiserror = "2.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Crypto
+pqcrypto-mlkem = "0.1"
+pqcrypto-sphincsplus = "0.7"
+sha2 = "0.10"
+hkdf = "0.12"
+aes-gcm = "0.10"
+x25519-dalek = "2.0"
+rand = "0.8"
+getrandom = { version = "0.2", features = ["js"] }
+zeroize = { version = "1.8", features = ["derive"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+hex = "0.4"
+base64 = "0.22"
+
+# Networking
+reqwest = { version = "0.12", features = ["json"] }
+tokio-tungstenite = "0.26"
+futures-util = "0.3"
+
+# Bluetooth (for native)
+btleplug = "0.11"
+
+# WASM
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "Bluetooth",
+    "BluetoothDevice",
+    "BluetoothRemoteGattServer",
+    "BluetoothRemoteGattService",
+    "BluetoothRemoteGattCharacteristic",
+    "WebSocket",
+    "MessageEvent",
+    "console",
+] }
+
+# FFI
+uniffi = "0.29"
+
+# STARK proofs (post-quantum event authentication)
+winterfell = "0.11"
+winter-crypto = "0.11"
+winter-math = "0.11"
+winter-utils = "0.11"

@@ -1,0 +1,150 @@
+/* Quantum Communicator - Refined LCARS Theme */
+
+:root {
+  /* Refined color palette - soft, sophisticated */
+  --lcars-cream: #f5e6d3;
+  --lcars-champagne: #e8d4b8;
+  --lcars-rose: #d4a5a5;
+  --lcars-mauve: #b8a5c4;
+  --lcars-lavender: #a5b4c4;
+  --lcars-sage: #a5c4b8;
+  --lcars-peach: #e8c4a5;
+  --lcars-coral: #d4a58a;
+
+  /* Accent colors */
+  --accent-gold: #c9a962;
+  --accent-copper: #b87333;
+  --accent-bronze: #a5845e;
+
+  /* Background tones */
+  --bg-deep: #0a0a12;
+  --bg-surface: rgba(15, 15, 25, 0.85);
+  --bg-elevated: rgba(25, 25, 40, 0.75);
+  --bg-glass: rgba(255, 255, 255, 0.03);
+
+  /* Text colors */
+  --text-primary: #e8e4df;
+  --text-secondary: rgba(232, 228, 223, 0.7);
+  --text-muted: rgba(232, 228, 223, 0.4);
+  --text-on-light: #1a1a24;
+
+  /* Gradients */
+  --gradient-warm: linear-gradient(135deg, var(--lcars-peach) 0%, var(--lcars-coral) 100%);
+  --gradient-cool: linear-gradient(135deg, var(--lcars-lavender) 0%, var(--lcars-mauve) 100%);
+  --gradient-subtle: linear-gradient(135deg, var(--lcars-cream) 0%, var(--lcars-champagne) 100%);
+  --gradient-rose: linear-gradient(135deg, var(--lcars-rose) 0%, var(--lcars-mauve) 100%);
+  --gradient-sage: linear-gradient(135deg, var(--lcars-sage) 0%, var(--lcars-lavender) 100%);
+
+  /* Shadows */
+  --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 40px rgba(201, 169, 98, 0.15);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  /* Borders */
+  --border-subtle: 1px solid rgba(255, 255, 255, 0.06);
+  --border-accent: 1px solid rgba(201, 169, 98, 0.3);
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  /* Typography */
+  --font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Border radius */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-full: 9999px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--bg-deep);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, rgba(168, 130, 100, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(130, 100, 168, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(100, 130, 168, 0.05) 0%, transparent 70%);
+  color: var(--text-primary);
+  line-height: 1.6;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(201, 169, 98, 0.3);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(201, 169, 98, 0.5);
+}
+
+/* Text selection */
+::selection {
+  background: rgba(201, 169, 98, 0.3);
+  color: var(--text-primary);
+}
+
+/* Focus styles */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: var(--bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: var(--border-subtle);
+}
+
+/* Utility classes */
+.hidden {
+  display: none !important;
+}
