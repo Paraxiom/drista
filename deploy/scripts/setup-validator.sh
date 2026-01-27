@@ -82,10 +82,11 @@ else
     echo "  TLS cert already exists, skipping"
 fi
 
-# ── Step 5: Install nginx config ──────────────────────────────
-echo "[5/8] Installing nginx WebSocket proxy config..."
+# ── Step 5: Install nginx configs ─────────────────────────────
+echo "[5/8] Installing nginx configs (bridge WS + notarial RPC)..."
 sudo cp "$BRIDGE_DIR/deploy/nginx/nginx-bridge-ws.conf" /etc/nginx/conf.d/bridge-ws.conf
-echo "  nginx config installed"
+sudo cp "$BRIDGE_DIR/deploy/nginx/nginx-notarial-rpc.conf" /etc/nginx/conf.d/notarial-rpc.conf
+echo "  nginx configs installed (bridge-ws + notarial-rpc with PQ TLS)"
 
 # ── Step 6: Configure bridge for localhost ────────────────────
 echo "[6/8] Setting bridge to localhost-only..."
@@ -156,4 +157,10 @@ echo "Next steps:"
 echo "  1. Add client public keys to $QSSH_KEYS_DIR/authorized_keys"
 echo "  2. Restart bridge with: BRIDGE_HOST=127.0.0.1 node $BRIDGE_DIR/web/bridge/index.js"
 echo "  3. Replace self-signed cert with Let's Encrypt for production"
-echo "  4. Open firewall ports: 4242 (QSSH) and 7778 (TLS/WSS)"
+echo "  4. Open firewall ports: 4242 (QSSH), 7778 (TLS/WSS), 443 (PQ TLS RPC)"
+echo "  5. Ensure port 9944 is NOT open externally (bound to localhost only)"
+echo ""
+echo "Notarial RPC:"
+echo "  External access via https://<validator-ip>/rpc (PQ TLS 1.3 + X25519MLKEM768)"
+echo "  Faucet via https://<validator-ip>/faucet/"
+echo "  Direct :9944 access blocked — use QSSH tunnel for native clients"

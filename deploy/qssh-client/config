@@ -11,11 +11,14 @@ Port 4242
 Host qh-alice
     HostName 51.79.26.123
     LocalForward 7777:localhost:7777
+    LocalForward 9944:localhost:9944
 
 Host qh-bob
     HostName 51.79.26.168
     LocalForward 7777:localhost:7777
+    LocalForward 9944:localhost:9944
 
 Host qh-charlie
     HostName 209.38.225.4
     LocalForward 7777:localhost:7777
+    LocalForward 9944:localhost:9944

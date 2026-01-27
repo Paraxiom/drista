@@ -70,14 +70,17 @@ Port 4242
 Host qh-alice
     HostName 51.79.26.123
     LocalForward 7777:localhost:7777
+    LocalForward 9944:localhost:9944
 
 Host qh-bob
     HostName 51.79.26.168
     LocalForward 7777:localhost:7777
+    LocalForward 9944:localhost:9944
 
 Host qh-charlie
     HostName 209.38.225.4
     LocalForward 7777:localhost:7777
+    LocalForward 9944:localhost:9944
 CONF
     echo "  Config generated inline"
 fi
@@ -114,6 +117,10 @@ echo "  qssh qh-alice          # Connect to Alice (Montreal)"
 echo "  qssh qh-bob            # Connect to Bob (Beauharnois)"
 echo "  qssh qh-charlie        # Connect to Charlie (Frankfurt)"
 echo ""
-echo "Once connected, the tunnel forwards localhost:7777 to the"
-echo "validator's bridge over Falcon-512 encrypted transport."
-echo "Open the app and it will connect via ws://localhost:7777 (PQ-SECURED)."
+echo "Once connected, the tunnel forwards:"
+echo "  localhost:7777 → validator bridge (Drista messaging)"
+echo "  localhost:9944 → Substrate RPC (notarial service)"
+echo ""
+echo "Both tunnels use Falcon-512 post-quantum encryption."
+echo "Open the notarial UI — it auto-detects the QSSH tunnel (PQ-SECURED badge)."
+echo "Without a tunnel, it falls back to PQ TLS via nginx (PQ-TLS badge)."
