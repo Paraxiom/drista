@@ -1,0 +1,21 @@
+# Rust
+target/
+.cargo/
+
+# Node
+node_modules/
+web/node_modules/
+web/dist/
+
+# Environment / secrets
+.env
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# QSSH keys (never commit private keys)
+deploy/qsshd/keys/
+deploy/qsshd/ssl/
