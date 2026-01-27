@@ -1,0 +1,21 @@
+# QSSH client configuration template
+# Install to: ~/.qssh/config
+#
+# After installing, run: qssh qh-alice
+# This establishes a Falcon-512 encrypted tunnel, forwarding
+# localhost:7777 to the validator's bridge on localhost:7777.
+
+PqAlgorithm falcon512
+Port 4242
+
+Host qh-alice
+    HostName 51.79.26.123
+    LocalForward 7777:localhost:7777
+
+Host qh-bob
+    HostName 51.79.26.168
+    LocalForward 7777:localhost:7777
+
+Host qh-charlie
+    HostName 209.38.225.4
+    LocalForward 7777:localhost:7777
