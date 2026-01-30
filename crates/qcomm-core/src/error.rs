@@ -41,6 +41,9 @@ pub enum Error {
     #[error("QKD key exhausted")]
     QkdKeyExhausted,
 
+    #[error("QKD connection failed: {0}")]
+    QkdConnection(String),
+
     // Transport errors
     #[error("BLE error: {0}")]
     Ble(String),

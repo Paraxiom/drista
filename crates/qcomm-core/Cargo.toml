@@ -19,6 +19,8 @@ native-crypto = [
     "dep:tokio",
     "dep:async-trait",
     "dep:futures-util",
+    "dep:qssh",
+    "dep:whoami",
 ]
 qrng = []           # Enable hardware QRNG support
 qkd = []            # Enable QKD integration
@@ -69,6 +71,12 @@ winterfell.workspace = true
 winter-crypto.workspace = true
 winter-math.workspace = true
 winter-utils.workspace = true
+
+# QSSH - Quantum Secure Shell integration (native only)
+qssh = { workspace = true, optional = true }
+
+# System info (for username detection)
+whoami = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

@@ -71,3 +71,9 @@ winterfell = "0.11"
 winter-crypto = "0.11"
 winter-math = "0.11"
 winter-utils = "0.11"
+
+# QSSH - Quantum Secure Shell (local path dependency)
+qssh = { path = "../paraxiom-qssh", features = ["qkd"] }
+
+# System info
+whoami = "1.6"
