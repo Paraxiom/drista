@@ -198,12 +198,17 @@ impl PqTripleRatchet {
         hk.expand(ROOT_INFO, &mut root_key)
             .map_err(|_| Error::RatchetCorrupted("Root key derivation failed".into()))?;
 
+        // Derive initial receiving chain key (matches initiator's sending chain)
+        let mut receiving_chain_key = [0u8; CHAIN_KEY_SIZE];
+        hk.expand(CHAIN_INFO, &mut receiving_chain_key)
+            .map_err(|_| Error::RatchetCorrupted("Chain key derivation failed".into()))?;
+
         Ok(Self {
             our_keypair,
             their_public_key: None,
             root_key: ChainKey(root_key),
             sending_chain: None,
-            receiving_chain: None,
+            receiving_chain: Some(ChainState::new(ChainKey(receiving_chain_key))),
             previous_sending_length: 0,
             skipped_keys: Vec::new(),
         })
@@ -249,9 +254,17 @@ impl PqTripleRatchet {
         let their_pk = MlKemPublicKey::from_bytes(&header.kem_public_key)?;
         let their_pk_changed = self.their_public_key.as_ref()
             .map(|pk| pk.as_bytes() != their_pk.as_bytes())
-            .unwrap_or(true);
+            .unwrap_or(false); // Changed: false if None (first message case)
 
-        if their_pk_changed {
+        // Special case: first message received (their_public_key is None)
+        // In this case, we just set their key but don't do a full ratchet
+        // because the responder's receiving chain was initialized from the shared secret
+        let is_first_message = self.their_public_key.is_none();
+
+        if is_first_message {
+            // First message: just record their public key, don't ratchet
+            self.their_public_key = Some(their_pk);
+        } else if their_pk_changed {
             // Skip any remaining messages in current receiving chain
             self.skip_messages(header.previous_chain_length)?;
 

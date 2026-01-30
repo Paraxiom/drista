@@ -42,15 +42,30 @@ impl MlKemPublicKey {
     /// Encapsulate a shared secret
     pub fn encapsulate(&self) -> Result<(MlKemCiphertext, SharedSecret)> {
         // In production, this would use the actual ML-KEM implementation
-        // For now, we simulate the operation
-        use rand::RngCore;
-        let mut rng = rand::thread_rng();
+        // For now, we simulate with deterministic derivation from public key
+        // This allows both parties to derive the same shared secret
+        use sha2::{Sha256, Digest};
+
+        // Derive ciphertext deterministically from public key
+        let mut hasher = Sha256::new();
+        hasher.update(b"mlkem_ciphertext_v1");
+        hasher.update(&self.0);
+        let ct_hash = hasher.finalize();
 
         let mut ciphertext = vec![0u8; MLKEM_CIPHERTEXT_SIZE];
-        rng.fill_bytes(&mut ciphertext);
+        // Fill ciphertext with repeated hash for deterministic padding
+        for i in 0..MLKEM_CIPHERTEXT_SIZE {
+            ciphertext[i] = ct_hash[i % 32];
+        }
+
+        // Derive shared secret deterministically from public key
+        let mut hasher = Sha256::new();
+        hasher.update(b"mlkem_shared_secret_v1");
+        hasher.update(&self.0);
+        let ss_hash = hasher.finalize();
 
         let mut shared_secret = [0u8; MLKEM_SHARED_SECRET_SIZE];
-        rng.fill_bytes(&mut shared_secret);
+        shared_secret.copy_from_slice(&ss_hash);
 
         Ok((
             MlKemCiphertext(ciphertext),
@@ -161,11 +176,17 @@ impl MlKemKeyPair {
     /// Decapsulate a shared secret from ciphertext
     pub fn decapsulate(&self, _ciphertext: &MlKemCiphertext) -> Result<SharedSecret> {
         // In production, this would use the actual ML-KEM decapsulation
-        use rand::RngCore;
-        let mut rng = rand::thread_rng();
+        // For the mock, derive the same shared secret that encapsulate() would produce
+        // by using the public key (since the ciphertext encodes the public key info)
+        use sha2::{Sha256, Digest};
+
+        let mut hasher = Sha256::new();
+        hasher.update(b"mlkem_shared_secret_v1");
+        hasher.update(self.public_key.as_bytes());
+        let ss_hash = hasher.finalize();
 
         let mut shared_secret = [0u8; MLKEM_SHARED_SECRET_SIZE];
-        rng.fill_bytes(&mut shared_secret);
+        shared_secret.copy_from_slice(&ss_hash);
 
         Ok(SharedSecret(shared_secret))
     }
@@ -194,13 +215,30 @@ impl SphincsPublicKey {
     }
 
     /// Verify a signature
-    pub fn verify(&self, _message: &[u8], signature: &[u8]) -> Result<bool> {
+    pub fn verify(&self, message: &[u8], signature: &[u8]) -> Result<bool> {
         // In production, this would use pqcrypto-sphincsplus
         // For now, basic validation
         if signature.len() != SPHINCS_SIGNATURE_SIZE {
             return Ok(false);
         }
-        Ok(true)
+
+        // Verify by checking that the hash prefix matches what we expect
+        // The signature contains hash(message || secret_key) in the first 32 bytes
+        // Since we don't have the secret key for verification, we use a different approach:
+        // Store the message hash in a known position and verify it
+        use sha2::{Sha256, Digest};
+        let mut hasher = Sha256::new();
+        hasher.update(message);
+        hasher.update(&self.0); // public key as part of verification
+        let expected_hash = hasher.finalize();
+
+        // Check if the signature's verification hash matches
+        // The signature stores: hash(msg||sk)[0..32] || hash(msg||pk)[0..32] || padding
+        // For verification, we check the public key portion (bytes 32..64)
+        if signature.len() < 64 {
+            return Ok(false);
+        }
+        Ok(&signature[32..64] == expected_hash.as_slice())
     }
 }
 
@@ -255,11 +293,18 @@ impl SphincsKeyPair {
         let mut hasher = Sha256::new();
         hasher.update(message);
         hasher.update(&self.secret_key);
-        let hash = hasher.finalize();
+        let secret_hash = hasher.finalize();
 
-        // Pad to signature size
+        // Also include a hash with public key for verification
+        let mut hasher = Sha256::new();
+        hasher.update(message);
+        hasher.update(self.public_key.as_bytes());
+        let public_hash = hasher.finalize();
+
+        // Pad to signature size: secret_hash || public_hash || padding
         let mut signature = vec![0u8; SPHINCS_SIGNATURE_SIZE];
-        signature[..32].copy_from_slice(&hash);
+        signature[..32].copy_from_slice(&secret_hash);
+        signature[32..64].copy_from_slice(&public_hash);
 
         Ok(signature)
     }

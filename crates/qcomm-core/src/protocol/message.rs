@@ -72,7 +72,6 @@ pub struct Message {
 
 /// Message content variants
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", content = "data")]
 pub enum MessageContent {
     /// Text content
     Text(String),
@@ -104,22 +103,16 @@ pub enum MessageContent {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MessageMetadata {
     /// Message was encrypted with PQC
-    #[serde(default)]
     pub pqc_encrypted: bool,
     /// QRNG was used for keys
-    #[serde(default)]
     pub qrng_entropy: bool,
     /// QKD enhanced
-    #[serde(default)]
     pub qkd_enhanced: bool,
     /// AI agent ID if from agent
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_id: Option<String>,
     /// Mentions in message
-    #[serde(default)]
     pub mentions: Vec<String>,
     /// On-chain tx hash if persisted
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub tx_hash: Option<String>,
 }
 
