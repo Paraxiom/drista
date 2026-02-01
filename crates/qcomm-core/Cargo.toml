@@ -38,6 +38,9 @@ qrng = []
 # Quantum Key Distribution integration
 qkd = []
 
+# WASM-compatible crypto (pure Rust ML-KEM)
+wasm-crypto = ["dep:ml-kem", "dep:hybrid-array"]
+
 [dependencies]
 # Async runtime (native only)
 tokio = { version = "1.43", features = ["full"], optional = true }
@@ -54,6 +57,10 @@ tracing = "0.1"
 pqcrypto-traits = { version = "0.3", optional = true }
 pqcrypto-mlkem = { version = "0.1", optional = true }
 pqcrypto-sphincsplus = { version = "0.7", optional = true }
+
+# Post-quantum cryptography (WASM-compatible - pure Rust)
+ml-kem = { version = "0.2", optional = true }
+hybrid-array = { version = "0.2", optional = true }
 
 # Classical crypto
 sha2 = "0.10"

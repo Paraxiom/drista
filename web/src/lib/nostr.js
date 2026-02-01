@@ -1,13 +1,15 @@
 /**
  * Nostr Client for Drista
- * Implements NIP-01 (basic protocol) and NIP-04 (encrypted DMs)
+ * Implements NIP-01 (basic protocol), NIP-04 (encrypted DMs), and PQ Triple Ratchet
  * Uses real secp256k1 Schnorr signatures via @noble/secp256k1
+ * PQ crypto uses ML-KEM-1024 for post-quantum security
  */
 
 import { getSharedSecret } from '@noble/secp256k1';
 import { schnorr } from '@noble/curves/secp256k1.js';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex as nobleToHex, hexToBytes as nobleFromHex } from '@noble/hashes/utils';
+import * as pqCrypto from './pq-crypto.js';
 
 // Nostr event kinds
 export const KIND = {
@@ -15,7 +17,7 @@ export const KIND = {
   TEXT_NOTE: 1,
   RECOMMEND_RELAY: 2,
   CONTACTS: 3,
-  ENCRYPTED_DM: 4,        // NIP-04 (legacy)
+  ENCRYPTED_DM: 4,        // NIP-04 (legacy secp256k1)
   DELETE: 5,
   REPOST: 6,
   REACTION: 7,
@@ -24,7 +26,15 @@ export const KIND = {
   CHANNEL_MESSAGE: 42,
   SEALED_DM: 1059,        // NIP-17
   GIFT_WRAP: 1060,        // NIP-17
+  PQ_ENCRYPTED_DM: 20004, // Post-Quantum encrypted DM (ML-KEM + Triple Ratchet)
 };
+
+// PQ crypto state
+let pqInitialized = false;
+let pqPublicKey = null;
+
+// Mapping of Nostr pubkeys to PQ public keys (discovered via metadata or handshake)
+const pqPeerKeys = new Map();
 
 // Default relays — QuantumHarmony validator bridges (NIP-01 over Mesh Forum)
 // ws://localhost:7777 connects via QSSH tunnel (PQ-secured) when tunnel is active.
@@ -35,6 +45,45 @@ export const DEFAULT_RELAYS = [
   'wss://51.79.26.168:7778',        // Bob (Beauharnois) — TLS fallback
   'wss://209.38.225.4:7778',        // Charlie (Frankfurt) — TLS fallback
 ];
+
+/**
+ * Initialize PQ cryptography
+ * Should be called once at app startup
+ */
+export async function initPqCrypto() {
+  try {
+    pqPublicKey = await pqCrypto.initPqCrypto();
+    pqInitialized = true;
+    console.log('[Nostr] PQ crypto initialized');
+    return pqPublicKey;
+  } catch (error) {
+    console.error('[Nostr] Failed to initialize PQ crypto:', error);
+    pqInitialized = false;
+    return null;
+  }
+}
+
+/**
+ * Get our PQ public key for sharing
+ */
+export function getPqPublicKey() {
+  return pqPublicKey;
+}
+
+/**
+ * Register a peer's PQ public key
+ */
+export function registerPqPeerKey(nostrPubKey, pqPubKeyBase64) {
+  pqPeerKeys.set(nostrPubKey, pqPubKeyBase64);
+  console.log(`[Nostr] Registered PQ key for peer: ${nostrPubKey.slice(0, 16)}...`);
+}
+
+/**
+ * Check if a peer supports PQ crypto
+ */
+export function peerSupportsPq(nostrPubKey) {
+  return pqPeerKeys.has(nostrPubKey);
+}
 
 /**
  * Generate a new Nostr keypair using real secp256k1
@@ -431,7 +480,45 @@ export class NostrClient {
   async handleEvent({ subId, event, relay }) {
     this.emit('event', { subId, event, relay });
 
-    // Handle encrypted DMs
+    // Handle PQ-encrypted DMs (post-quantum)
+    if (event.kind === KIND.PQ_ENCRYPTED_DM) {
+      try {
+        const senderPubKey = event.pubkey;
+
+        // Extract sender's PQ public key from tags
+        const pqTag = event.tags.find(t => t[0] === 'pq');
+        if (pqTag && pqTag[1]) {
+          registerPqPeerKey(senderPubKey, pqTag[1]);
+        }
+
+        // Initialize PQ crypto if needed
+        if (!pqInitialized) {
+          await initPqCrypto();
+        }
+
+        const content = await pqCrypto.parsePqDmContent(
+          senderPubKey,
+          event.content,
+          pqTag ? pqTag[1] : null
+        );
+
+        this.emit('message', {
+          id: event.id,
+          from: senderPubKey,
+          to: this.publicKey,
+          content,
+          timestamp: event.created_at * 1000,
+          relay,
+          encrypted: true,
+          pqEncrypted: true, // Flag for PQ encryption
+          tags: event.tags,
+        });
+      } catch (error) {
+        console.error('[Nostr] Failed to decrypt PQ DM:', error);
+      }
+    }
+
+    // Handle NIP-04 encrypted DMs (legacy)
     if (event.kind === KIND.ENCRYPTED_DM) {
       try {
         const senderPubKey = event.pubkey;
@@ -445,10 +532,11 @@ export class NostrClient {
           timestamp: event.created_at * 1000,
           relay,
           encrypted: true,
+          pqEncrypted: false,
           tags: event.tags,
         });
       } catch (error) {
-        console.error('[Nostr] Failed to decrypt DM:', error);
+        console.error('[Nostr] Failed to decrypt NIP-04 DM:', error);
       }
     }
   }
@@ -459,14 +547,14 @@ export class NostrClient {
     }
 
     const filters = [
-      // DMs to us
+      // DMs to us (both NIP-04 and PQ)
       {
-        kinds: [KIND.ENCRYPTED_DM],
+        kinds: [KIND.ENCRYPTED_DM, KIND.PQ_ENCRYPTED_DM],
         '#p': [this.publicKey],
       },
-      // Our sent DMs
+      // Our sent DMs (both NIP-04 and PQ)
       {
-        kinds: [KIND.ENCRYPTED_DM],
+        kinds: [KIND.ENCRYPTED_DM, KIND.PQ_ENCRYPTED_DM],
         authors: [this.publicKey],
       },
     ];
@@ -478,21 +566,88 @@ export class NostrClient {
     }
   }
 
-  async sendDM(recipientPubKey, message) {
+  async sendDM(recipientPubKey, message, usePq = true) {
     if (!this.privateKey) {
       throw new Error('Client not initialized');
     }
 
-    const encrypted = await encryptDM(message, recipientPubKey, this.privateKey);
+    let event;
+
+    // Use PQ crypto if available and peer supports it
+    if (usePq && pqInitialized && peerSupportsPq(recipientPubKey)) {
+      const pqPeerKey = pqPeerKeys.get(recipientPubKey);
+      const encrypted = await pqCrypto.createPqDmContent(recipientPubKey, message, pqPeerKey);
+
+      // Include our PQ public key in tags for discovery
+      event = createEvent(
+        KIND.PQ_ENCRYPTED_DM,
+        encrypted,
+        [
+          ['p', recipientPubKey],
+          ['pq', pqPublicKey], // Our PQ public key
+        ],
+        this.privateKey
+      );
+
+      console.log('[Nostr] Sending PQ-encrypted DM');
+    } else {
+      // Fallback to NIP-04
+      const encrypted = await encryptDM(message, recipientPubKey, this.privateKey);
+
+      event = createEvent(
+        KIND.ENCRYPTED_DM,
+        encrypted,
+        [['p', recipientPubKey]],
+        this.privateKey
+      );
+
+      console.log('[Nostr] Sending NIP-04 encrypted DM (legacy)');
+    }
+
+    // Publish to all connected relays
+    for (const relay of this.relays.values()) {
+      if (relay.connected) {
+        relay.publish(event);
+      }
+    }
+
+    return event;
+  }
+
+  /**
+   * Send a DM with explicit PQ encryption
+   */
+  async sendPqDM(recipientPubKey, message, recipientPqPubKey) {
+    if (!this.privateKey) {
+      throw new Error('Client not initialized');
+    }
+
+    if (!pqInitialized) {
+      await initPqCrypto();
+    }
+
+    // Register their PQ key if provided
+    if (recipientPqPubKey) {
+      registerPqPeerKey(recipientPubKey, recipientPqPubKey);
+    }
+
+    const pqPeerKey = pqPeerKeys.get(recipientPubKey);
+    if (!pqPeerKey) {
+      throw new Error('No PQ public key for recipient. Provide recipientPqPubKey.');
+    }
+
+    const encrypted = await pqCrypto.createPqDmContent(recipientPubKey, message, pqPeerKey);
 
     const event = createEvent(
-      KIND.ENCRYPTED_DM,
+      KIND.PQ_ENCRYPTED_DM,
       encrypted,
-      [['p', recipientPubKey]],
+      [
+        ['p', recipientPubKey],
+        ['pq', pqPublicKey],
+      ],
       this.privateKey
     );
 
-    // Publish to all connected relays
     for (const relay of this.relays.values()) {
       if (relay.connected) {
         relay.publish(event);
