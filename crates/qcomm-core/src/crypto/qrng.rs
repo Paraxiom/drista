@@ -86,7 +86,7 @@ impl QrngProvider {
 
     /// Get entropy from Crypto4A hardware
     #[cfg(not(target_arch = "wasm32"))]
-    fn get_crypto4a_entropy(&self, bytes: usize) -> Result<Vec<u8>> {
+    fn get_crypto4a_entropy(&self, _bytes: usize) -> Result<Vec<u8>> {
         // In production, this would communicate with Crypto4A hardware
         // via USB HID or similar interface
         Err(Error::QrngUnavailable("Crypto4A not implemented".into()))

@@ -14,7 +14,7 @@ use winterfell::{
     Air, AirContext, Assertion, AuxRandElements, CompositionPoly, CompositionPolyTrace,
     ConstraintCompositionCoefficients, DefaultConstraintCommitment, DefaultConstraintEvaluator,
     DefaultTraceLde, EvaluationFrame, FieldExtension, PartitionOptions, Proof, ProofOptions,
-    Prover, StarkDomain, Trace, TraceInfo, TraceLde, TracePolyTable, TraceTable,
+    Prover, StarkDomain, Trace, TraceInfo, TracePolyTable, TraceTable,
     TransitionConstraintDegree, AcceptableOptions,
 };
 use winter_utils::Serializable;
