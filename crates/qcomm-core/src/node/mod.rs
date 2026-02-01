@@ -5,14 +5,23 @@
 //! - On-chain forum posting
 //! - Validator identity
 //! - Transaction submission
+//! - Notarial document attestation
+//! - Ricardian contracts
 
 pub mod client;
 pub mod sync;
 pub mod validator;
+pub mod quantum_harmony;
 
 pub use client::LightClient;
 pub use sync::SyncState;
 pub use validator::ValidatorMode;
+pub use quantum_harmony::{
+    QuantumHarmonyClient, QuantumHarmonyConfig, SecurityTier,
+    DocumentAttestation, DocumentCategory, WitnessSignature,
+    RicardianContract, ContractClause, ContractParty, ContractStatus, ContractAmendment,
+    ConnectionState,
+};
 
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};

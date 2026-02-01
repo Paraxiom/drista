@@ -21,7 +21,7 @@ export async function initWasm() {
 
   initPromise = (async () => {
     try {
-      const wasm = await import('/pkg/qcomm_wasm.js');
+      const wasm = await import('../../pkg/qcomm_wasm.js');
       await wasm.default();
 
       wasmModule = wasm;
