@@ -23,6 +23,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Crypto
+pqcrypto-traits = "0.3"
 pqcrypto-mlkem = "0.1"
 pqcrypto-sphincsplus = "0.7"
 sha2 = "0.10"

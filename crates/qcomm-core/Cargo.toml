@@ -10,6 +10,7 @@ description = "Core library for Quantum Communicator - PQC chat with BitChat com
 default = ["std", "native-crypto"]
 std = []
 native-crypto = [
+    "dep:pqcrypto-traits",
     "dep:pqcrypto-mlkem",
     "dep:pqcrypto-sphincsplus",
     "dep:x25519-dalek",
@@ -40,6 +41,7 @@ anyhow.workspace = true
 tracing.workspace = true
 
 # Post-quantum cryptography (native only - C bindings)
+pqcrypto-traits = { workspace = true, optional = true }
 pqcrypto-mlkem = { workspace = true, optional = true }
 pqcrypto-sphincsplus = { workspace = true, optional = true }
 

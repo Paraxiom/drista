@@ -1,21 +1,34 @@
 //! Post-quantum cryptographic primitives
 //!
 //! Provides ML-KEM (Kyber) for key encapsulation and SPHINCS+ for signatures.
+//! Uses NIST standardized algorithms via pqcrypto crate.
 
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-// ML-KEM-1024 parameters (NIST Level 5)
-const MLKEM_PUBLIC_KEY_SIZE: usize = 1568;
-const MLKEM_SECRET_KEY_SIZE: usize = 3168;
-const MLKEM_CIPHERTEXT_SIZE: usize = 1568;
-const MLKEM_SHARED_SECRET_SIZE: usize = 32;
+// Use the real pqcrypto libraries
+use pqcrypto_mlkem::mlkem1024;
+use pqcrypto_sphincsplus::sphincssha2256fsimple as sphincs;
+// Import traits to bring methods into scope
+use pqcrypto_traits::kem::Ciphertext as PqCtTrait;
+use pqcrypto_traits::kem::PublicKey as PqKemPkTrait;
+use pqcrypto_traits::kem::SecretKey as PqKemSkTrait;
+use pqcrypto_traits::kem::SharedSecret as PqSsTrait;
+use pqcrypto_traits::sign::DetachedSignature as PqDetSigTrait;
+use pqcrypto_traits::sign::PublicKey as PqSignPkTrait;
+use pqcrypto_traits::sign::SecretKey as PqSignSkTrait;
 
-// SPHINCS+-256s parameters (NIST Level 5, small signatures)
-const SPHINCS_PUBLIC_KEY_SIZE: usize = 64;
-const SPHINCS_SECRET_KEY_SIZE: usize = 128;
-const SPHINCS_SIGNATURE_SIZE: usize = 29792;
+// ML-KEM-1024 parameters (NIST Level 5)
+const MLKEM_PUBLIC_KEY_SIZE: usize = mlkem1024::public_key_bytes();
+const MLKEM_SECRET_KEY_SIZE: usize = mlkem1024::secret_key_bytes();
+const MLKEM_CIPHERTEXT_SIZE: usize = mlkem1024::ciphertext_bytes();
+const MLKEM_SHARED_SECRET_SIZE: usize = mlkem1024::shared_secret_bytes();
+
+// SPHINCS+-SHA2-256f-simple parameters
+const SPHINCS_PUBLIC_KEY_SIZE: usize = sphincs::public_key_bytes();
+const SPHINCS_SECRET_KEY_SIZE: usize = sphincs::secret_key_bytes();
+const SPHINCS_SIGNATURE_SIZE: usize = sphincs::signature_bytes();
 
 /// ML-KEM public key for key encapsulation
 #[derive(Clone, Serialize, Deserialize)]
@@ -41,34 +54,16 @@ impl MlKemPublicKey {
 
     /// Encapsulate a shared secret
     pub fn encapsulate(&self) -> Result<(MlKemCiphertext, SharedSecret)> {
-        // In production, this would use the actual ML-KEM implementation
-        // For now, we simulate with deterministic derivation from public key
-        // This allows both parties to derive the same shared secret
-        use sha2::{Sha256, Digest};
+        let pk = PqKemPkTrait::from_bytes(&self.0)
+            .map_err(|_| Error::KeyExchange("Invalid ML-KEM public key".into()))?;
 
-        // Derive ciphertext deterministically from public key
-        let mut hasher = Sha256::new();
-        hasher.update(b"mlkem_ciphertext_v1");
-        hasher.update(&self.0);
-        let ct_hash = hasher.finalize();
-
-        let mut ciphertext = vec![0u8; MLKEM_CIPHERTEXT_SIZE];
-        // Fill ciphertext with repeated hash for deterministic padding
-        for i in 0..MLKEM_CIPHERTEXT_SIZE {
-            ciphertext[i] = ct_hash[i % 32];
-        }
-
-        // Derive shared secret deterministically from public key
-        let mut hasher = Sha256::new();
-        hasher.update(b"mlkem_shared_secret_v1");
-        hasher.update(&self.0);
-        let ss_hash = hasher.finalize();
+        let (ss, ct) = mlkem1024::encapsulate(&pk);
 
         let mut shared_secret = [0u8; MLKEM_SHARED_SECRET_SIZE];
-        shared_secret.copy_from_slice(&ss_hash);
+        shared_secret.copy_from_slice(PqSsTrait::as_bytes(&ss));
 
         Ok((
-            MlKemCiphertext(ciphertext),
+            MlKemCiphertext(PqCtTrait::as_bytes(&ct).to_vec()),
             SharedSecret(shared_secret),
         ))
     }
@@ -139,7 +134,12 @@ impl Drop for MlKemKeyPair {
 impl MlKemKeyPair {
     /// Generate a new ML-KEM keypair
     pub fn generate() -> Result<Self> {
-        Self::generate_internal(None)
+        let (pk, sk) = mlkem1024::keypair();
+
+        Ok(Self {
+            public_key: MlKemPublicKey(PqKemPkTrait::as_bytes(&pk).to_vec()),
+            secret_key: PqKemSkTrait::as_bytes(&sk).to_vec(),
+        })
     }
 
     /// Generate from seed (for QRNG)
@@ -147,25 +147,10 @@ impl MlKemKeyPair {
         if seed.len() < 64 {
             return Err(Error::InsufficientEntropy);
         }
-        Self::generate_internal(Some(seed))
-    }
-
-    fn generate_internal(_seed: Option<&[u8]>) -> Result<Self> {
-        // In production, this would use pqcrypto-mlkem
-        // For now, simulate key generation
-        use rand::RngCore;
-        let mut rng = rand::thread_rng();
-
-        let mut public_key = vec![0u8; MLKEM_PUBLIC_KEY_SIZE];
-        let mut secret_key = vec![0u8; MLKEM_SECRET_KEY_SIZE];
-
-        rng.fill_bytes(&mut public_key);
-        rng.fill_bytes(&mut secret_key);
-
-        Ok(Self {
-            public_key: MlKemPublicKey(public_key),
-            secret_key,
-        })
+        // For seeded generation, we'd need a deterministic variant
+        // For now, fall back to random generation
+        // TODO: Implement deterministic keygen when pqcrypto supports it
+        Self::generate()
     }
 
     /// Get the public key
@@ -174,19 +159,17 @@ impl MlKemKeyPair {
     }
 
     /// Decapsulate a shared secret from ciphertext
-    pub fn decapsulate(&self, _ciphertext: &MlKemCiphertext) -> Result<SharedSecret> {
-        // In production, this would use the actual ML-KEM decapsulation
-        // For the mock, derive the same shared secret that encapsulate() would produce
-        // by using the public key (since the ciphertext encodes the public key info)
-        use sha2::{Sha256, Digest};
+    pub fn decapsulate(&self, ciphertext: &MlKemCiphertext) -> Result<SharedSecret> {
+        let sk: mlkem1024::SecretKey = PqKemSkTrait::from_bytes(&self.secret_key)
+            .map_err(|_| Error::KeyExchange("Invalid ML-KEM secret key".into()))?;
 
-        let mut hasher = Sha256::new();
-        hasher.update(b"mlkem_shared_secret_v1");
-        hasher.update(self.public_key.as_bytes());
-        let ss_hash = hasher.finalize();
+        let ct: mlkem1024::Ciphertext = PqCtTrait::from_bytes(ciphertext.as_bytes())
+            .map_err(|_| Error::KeyExchange("Invalid ML-KEM ciphertext".into()))?;
+
+        let ss = mlkem1024::decapsulate(&ct, &sk);
 
         let mut shared_secret = [0u8; MLKEM_SHARED_SECRET_SIZE];
-        shared_secret.copy_from_slice(&ss_hash);
+        shared_secret.copy_from_slice(PqSsTrait::as_bytes(&ss));
 
         Ok(SharedSecret(shared_secret))
     }
@@ -214,31 +197,22 @@ impl SphincsPublicKey {
         Ok(Self(bytes.to_vec()))
     }
 
-    /// Verify a signature
+    /// Verify a detached signature
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> Result<bool> {
-        // In production, this would use pqcrypto-sphincsplus
-        // For now, basic validation
         if signature.len() != SPHINCS_SIGNATURE_SIZE {
             return Ok(false);
         }
 
-        // Verify by checking that the hash prefix matches what we expect
-        // The signature contains hash(message || secret_key) in the first 32 bytes
-        // Since we don't have the secret key for verification, we use a different approach:
-        // Store the message hash in a known position and verify it
-        use sha2::{Sha256, Digest};
-        let mut hasher = Sha256::new();
-        hasher.update(message);
-        hasher.update(&self.0); // public key as part of verification
-        let expected_hash = hasher.finalize();
+        let pk: sphincs::PublicKey = PqSignPkTrait::from_bytes(&self.0)
+            .map_err(|_| Error::SignatureVerification("Invalid SPHINCS+ public key".into()))?;
 
-        // Check if the signature's verification hash matches
-        // The signature stores: hash(msg||sk)[0..32] || hash(msg||pk)[0..32] || padding
-        // For verification, we check the public key portion (bytes 32..64)
-        if signature.len() < 64 {
-            return Ok(false);
+        let sig: sphincs::DetachedSignature = PqDetSigTrait::from_bytes(signature)
+            .map_err(|_| Error::SignatureVerification("Invalid SPHINCS+ signature".into()))?;
+
+        match sphincs::verify_detached_signature(&sig, message, &pk) {
+            Ok(()) => Ok(true),
+            Err(_) => Ok(false),
         }
-        Ok(&signature[32..64] == expected_hash.as_slice())
     }
 }
 
@@ -251,7 +225,12 @@ pub struct SphincsKeyPair {
 impl SphincsKeyPair {
     /// Generate a new SPHINCS+ keypair
     pub fn generate() -> Result<Self> {
-        Self::generate_internal(None)
+        let (pk, sk) = sphincs::keypair();
+
+        Ok(Self {
+            public_key: SphincsPublicKey(PqSignPkTrait::as_bytes(&pk).to_vec()),
+            secret_key: PqSignSkTrait::as_bytes(&sk).to_vec(),
+        })
     }
 
     /// Generate from seed (for QRNG)
@@ -259,24 +238,8 @@ impl SphincsKeyPair {
         if seed.len() < 64 {
             return Err(Error::InsufficientEntropy);
         }
-        Self::generate_internal(Some(seed))
-    }
-
-    fn generate_internal(_seed: Option<&[u8]>) -> Result<Self> {
-        // In production, this would use pqcrypto-sphincsplus
-        use rand::RngCore;
-        let mut rng = rand::thread_rng();
-
-        let mut public_key = vec![0u8; SPHINCS_PUBLIC_KEY_SIZE];
-        let mut secret_key = vec![0u8; SPHINCS_SECRET_KEY_SIZE];
-
-        rng.fill_bytes(&mut public_key);
-        rng.fill_bytes(&mut secret_key);
-
-        Ok(Self {
-            public_key: SphincsPublicKey(public_key),
-            secret_key,
-        })
+        // TODO: Implement deterministic keygen when pqcrypto supports it
+        Self::generate()
     }
 
     /// Get the public key
@@ -284,29 +247,14 @@ impl SphincsKeyPair {
         &self.public_key
     }
 
-    /// Sign a message
+    /// Sign a message (detached signature)
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
-        // In production, this would use pqcrypto-sphincsplus
-        use sha2::{Sha256, Digest};
+        let sk = PqSignSkTrait::from_bytes(&self.secret_key)
+            .map_err(|_| Error::SignatureCreation("Invalid SPHINCS+ secret key".into()))?;
 
-        // Simulate signature (hash of message + secret key)
-        let mut hasher = Sha256::new();
-        hasher.update(message);
-        hasher.update(&self.secret_key);
-        let secret_hash = hasher.finalize();
+        let sig = sphincs::detached_sign(message, &sk);
 
-        // Also include a hash with public key for verification
-        let mut hasher = Sha256::new();
-        hasher.update(message);
-        hasher.update(self.public_key.as_bytes());
-        let public_hash = hasher.finalize();
-
-        // Pad to signature size: secret_hash || public_hash || padding
-        let mut signature = vec![0u8; SPHINCS_SIGNATURE_SIZE];
-        signature[..32].copy_from_slice(&secret_hash);
-        signature[32..64].copy_from_slice(&public_hash);
-
-        Ok(signature)
+        Ok(PqDetSigTrait::as_bytes(&sig).to_vec())
     }
 }
 
@@ -335,9 +283,9 @@ mod tests {
     #[test]
     fn test_mlkem_encapsulate_decapsulate() {
         let kp = MlKemKeyPair::generate().unwrap();
-        let (ct, _ss1) = kp.public_key().encapsulate().unwrap();
-        let _ss2 = kp.decapsulate(&ct).unwrap();
-        // In production, ss1 and ss2 would be equal
+        let (ct, ss1) = kp.public_key().encapsulate().unwrap();
+        let ss2 = kp.decapsulate(&ct).unwrap();
+        assert_eq!(ss1.as_bytes(), ss2.as_bytes());
     }
 
     #[test]
@@ -349,9 +297,29 @@ mod tests {
     #[test]
     fn test_sphincs_sign_verify() {
         let kp = SphincsKeyPair::generate().unwrap();
-        let message = b"Test message";
+        let message = b"Test message for SPHINCS+ signature";
         let signature = kp.sign(message).unwrap();
         assert_eq!(signature.len(), SPHINCS_SIGNATURE_SIZE);
         assert!(kp.public_key().verify(message, &signature).unwrap());
+    }
+
+    #[test]
+    fn test_sphincs_verify_wrong_message() {
+        let kp = SphincsKeyPair::generate().unwrap();
+        let message = b"Original message";
+        let signature = kp.sign(message).unwrap();
+        let wrong_message = b"Wrong message";
+        assert!(!kp.public_key().verify(wrong_message, &signature).unwrap());
+    }
+
+    #[test]
+    fn test_ratchet_integration() {
+        // Simulate initial key exchange
+        let bob_keypair = MlKemKeyPair::generate().unwrap();
+        let (ct, alice_ss) = bob_keypair.public_key().encapsulate().unwrap();
+        let bob_ss = bob_keypair.decapsulate(&ct).unwrap();
+
+        // Both parties should derive the same shared secret
+        assert_eq!(alice_ss.as_bytes(), bob_ss.as_bytes());
     }
 }

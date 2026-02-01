@@ -21,6 +21,12 @@ pub enum Error {
     #[error("Invalid signature")]
     InvalidSignature,
 
+    #[error("Signature creation failed: {0}")]
+    SignatureCreation(String),
+
+    #[error("Signature verification failed: {0}")]
+    SignatureVerification(String),
+
     #[error("Key exchange failed: {0}")]
     KeyExchange(String),
 
