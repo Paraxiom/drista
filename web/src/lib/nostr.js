@@ -89,7 +89,8 @@ export function peerSupportsPq(nostrPubKey) {
  * Generate a new Nostr keypair using real secp256k1
  */
 export function generateKeyPair() {
-  const privateKeyBytes = schnorr.utils.randomPrivateKey();
+  // Generate 32 random bytes for private key
+  const privateKeyBytes = crypto.getRandomValues(new Uint8Array(32));
   const publicKeyBytes = schnorr.getPublicKey(privateKeyBytes);
 
   return {
