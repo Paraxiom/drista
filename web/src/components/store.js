@@ -122,8 +122,8 @@ export async function handleIncomingMessage(msg) {
   let channelId;
 
   if (msg.channelId) {
-    // Forum/channel message
-    channelId = msg.channelId;
+    // Forum/channel message - normalize to #channel format
+    channelId = msg.channelId.startsWith('#') ? msg.channelId : `#${msg.channelId}`;
     if (!channels.value.find(ch => ch.id === channelId)) {
       addChannel({
         id: channelId,

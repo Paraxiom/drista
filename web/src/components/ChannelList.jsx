@@ -40,6 +40,14 @@ function ChannelItem({ channel, active, onClick }) {
   const icon = channel.channelType === 'direct' ? '◈' :
                channel.channelType === 'forum' ? '#' : '◉';
   const encrypted = channel.encrypted ? '🔒' : '';
+  const isDefault = channel.id === '#drista';
+
+  function handleRemove(e) {
+    e.stopPropagation();
+    if (confirm(`Remove channel "${channel.name}"?`)) {
+      store.removeChannel(channel.id);
+    }
+  }
 
   return (
     <div class={`channel-item ${active ? 'active' : ''}`} onClick={onClick}>
@@ -47,6 +55,9 @@ function ChannelItem({ channel, active, onClick }) {
       <span class="channel-name">{channel.name} {encrypted}</span>
       {channel.unreadCount > 0 && (
         <span class="channel-unread">{channel.unreadCount}</span>
+      )}
+      {!isDefault && (
+        <button class="channel-remove" onClick={handleRemove} title="Remove channel">×</button>
       )}
     </div>
   );

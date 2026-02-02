@@ -287,6 +287,27 @@
   text-align: center;
 }
 
+.channel-remove {
+  opacity: 0;
+  background: transparent;
+  border: none;
+  color: var(--lcars-rose);
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: 4px;
+  transition: opacity 0.2s;
+}
+
+.channel-item:hover .channel-remove {
+  opacity: 0.6;
+}
+
+.channel-remove:hover {
+  opacity: 1 !important;
+}
+
 /* ═══════════════════════════════════════════════════════════
    CHAT AREA
    ═══════════════════════════════════════════════════════════ */
