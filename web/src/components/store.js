@@ -118,18 +118,36 @@ export function disconnectNostr() {
 
 // ── Incoming messages ───────────────────────────────────────
 export async function handleIncomingMessage(msg) {
-  const channelId = `dm:${msg.from}`;
+  // Determine channel: use msg.channelId for forum messages, or create DM channel
+  let channelId;
 
-  if (!channels.value.find(ch => ch.id === channelId)) {
-    addChannel({
-      id: channelId,
-      name: msg.from.slice(0, 12) + '...',
-      channelType: 'direct',
-      encrypted: true,
-      pqcEnabled: false,
-      unreadCount: 0,
-      nostrPubkey: msg.from,
-    });
+  if (msg.channelId) {
+    // Forum/channel message
+    channelId = msg.channelId;
+    if (!channels.value.find(ch => ch.id === channelId)) {
+      addChannel({
+        id: channelId,
+        name: channelId,
+        channelType: 'forum',
+        encrypted: false,
+        pqcEnabled: false,
+        unreadCount: 0,
+      });
+    }
+  } else {
+    // DM - create dm:pubkey channel
+    channelId = `dm:${msg.from}`;
+    if (!channels.value.find(ch => ch.id === channelId)) {
+      addChannel({
+        id: channelId,
+        name: msg.from.slice(0, 12) + '...',
+        channelType: 'direct',
+        encrypted: true,
+        pqcEnabled: false,
+        unreadCount: 0,
+        nostrPubkey: msg.from,
+      });
+    }
   }
 
   // STARK verification

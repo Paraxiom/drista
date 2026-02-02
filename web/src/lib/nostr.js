@@ -540,6 +540,41 @@ export class NostrClient {
         console.error('[Nostr] Failed to decrypt NIP-04 DM:', error);
       }
     }
+
+    // Handle public text notes (KIND 1)
+    if (event.kind === KIND.TEXT_NOTE) {
+      this.emit('message', {
+        id: event.id,
+        from: event.pubkey,
+        to: null,
+        content: event.content,
+        timestamp: event.created_at * 1000,
+        relay,
+        encrypted: false,
+        pqEncrypted: false,
+        tags: event.tags,
+        channelId: '#drista',
+      });
+    }
+
+    // Handle channel messages (KIND 42)
+    if (event.kind === KIND.CHANNEL_MESSAGE) {
+      const channelTag = event.tags.find(t => t[0] === 'e');
+      const channelId = channelTag ? channelTag[1] : '#drista';
+
+      this.emit('message', {
+        id: event.id,
+        from: event.pubkey,
+        to: null,
+        content: event.content,
+        timestamp: event.created_at * 1000,
+        relay,
+        encrypted: false,
+        pqEncrypted: false,
+        tags: event.tags,
+        channelId,
+      });
+    }
   }
 
   subscribeToMessages() {
@@ -557,6 +592,11 @@ export class NostrClient {
       {
         kinds: [KIND.ENCRYPTED_DM, KIND.PQ_ENCRYPTED_DM],
         authors: [this.publicKey],
+      },
+      // Channel messages and text notes (public forum)
+      {
+        kinds: [KIND.TEXT_NOTE, KIND.CHANNEL_MESSAGE],
+        limit: 100,
       },
     ];
 
