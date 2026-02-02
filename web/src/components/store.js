@@ -1,10 +1,21 @@
 /**
  * Chat Store - Signals-based State Management with Nostr Integration
+ *
+ * Hybrid IPFS Storage: Content on IPFS, references on-chain
  */
 
 import { signal, computed } from '@preact/signals';
 import { NostrClient, DEFAULT_RELAYS, encryptDM, createEvent, KIND, getPublicKeyHex } from '../lib/nostr.js';
 import { StarkIdentityManager } from '../lib/stark-identity.js';
+import {
+  uploadToIPFS,
+  fetchFromIPFS,
+  hashContent,
+  verifyContent,
+  isIPFSCid,
+  createMessageEnvelope,
+  getIPFSStatus,
+} from '../lib/ipfs.js';
 
 // ── Reactive state ──────────────────────────────────────────
 export const channels = signal([]);
@@ -13,6 +24,8 @@ export const currentChannelId = signal(null); // string ID
 export const nostrStatus = signal('disconnected');
 export const connectedRelays = signal([]);
 export const activeModal = signal(null);      // null|'newDM'|'newGroup'|'settings'|'relayInfo'
+export const ipfsEnabled = signal(true);      // Use IPFS hybrid storage
+export const ipfsStatus = signal('ready');    // 'ready'|'uploading'|'error'
 
 // ── Computed ────────────────────────────────────────────────
 export const currentChannel = computed(() =>
@@ -116,7 +129,7 @@ export function disconnectNostr() {
   connectedRelays.value = [];
 }
 
-// ── Incoming messages ───────────────────────────────────────
+// ── Incoming messages (with IPFS hybrid storage support) ────
 export async function handleIncomingMessage(msg) {
   // Determine channel: use msg.channelId for forum messages, or create DM channel
   let channelId;
@@ -150,6 +163,51 @@ export async function handleIncomingMessage(msg) {
     }
   }
 
+  // Check if this is an IPFS hybrid message
+  let messageContent = msg.content;
+  let ipfsCid = null;
+  let ipfsVerified = null;
+
+  // Check for IPFS tag or try to parse content as IPFS reference
+  const ipfsTag = msg.tags?.find(t => t[0] === 'ipfs');
+  if (ipfsTag) {
+    ipfsCid = ipfsTag[1];
+  } else {
+    // Try to parse content as JSON with IPFS reference
+    try {
+      const parsed = JSON.parse(msg.content);
+      if (parsed.ipfs && parsed.v === 2) {
+        ipfsCid = parsed.ipfs;
+      }
+    } catch {
+      // Not JSON, use content as-is
+    }
+  }
+
+  // Fetch from IPFS if we have a CID
+  if (ipfsCid) {
+    try {
+      console.log('[Store] Fetching message from IPFS:', ipfsCid);
+      const envelope = await fetchFromIPFS(ipfsCid);
+      messageContent = envelope.content || envelope;
+
+      // Verify content hash if available
+      const hashTag = msg.tags?.find(t => t[0] === 'content-hash');
+      if (hashTag) {
+        const expectedHash = hashTag[1];
+        const actualHash = await hashContent(messageContent);
+        ipfsVerified = actualHash.slice(0, 16) === expectedHash;
+        console.log(`[Store] IPFS content verification: ${ipfsVerified ? 'VALID' : 'INVALID'}`);
+      } else {
+        ipfsVerified = true; // No hash to verify against
+      }
+    } catch (error) {
+      console.warn('[Store] Failed to fetch from IPFS, using on-chain content:', error);
+      // Fall back to on-chain content (might be truncated/reference)
+      ipfsVerified = false;
+    }
+  }
+
   // STARK verification
   let starkProof = null;
   let starkPubkey = null;
@@ -160,7 +218,7 @@ export async function handleIncomingMessage(msg) {
     starkProof = starkTag[1];
     starkPubkey = starkTag[2];
     try {
-      starkVerified = StarkIdentityManager.verify(starkProof, msg.content, starkPubkey);
+      starkVerified = StarkIdentityManager.verify(starkProof, messageContent, starkPubkey);
       console.log(`[Store] STARK verification: ${starkVerified ? 'VALID' : 'INVALID'}`);
     } catch (error) {
       console.warn('[Store] STARK verification failed:', error);
@@ -172,7 +230,7 @@ export async function handleIncomingMessage(msg) {
     id: msg.id,
     sender: msg.from,
     recipient: msg.to,
-    text: msg.content,
+    text: messageContent,
     timestamp: msg.timestamp,
     encrypted: msg.encrypted,
     relay: msg.relay,
@@ -180,6 +238,8 @@ export async function handleIncomingMessage(msg) {
     starkProof,
     starkPubkey,
     starkVerified,
+    ipfsCid,
+    ipfsVerified,
   };
 
   const old = messages.value[channelId] || [];
@@ -198,7 +258,7 @@ export async function handleIncomingMessage(msg) {
   save();
 }
 
-// ── Send public channel message ─────────────────────────────
+// ── Send public channel message (with IPFS hybrid storage) ──
 export async function sendChannelMessage(channelId, messageText, starkSig) {
   try {
     const tags = [['e', channelId.replace('#', ''), '', 'root']];
@@ -206,14 +266,52 @@ export async function sendChannelMessage(channelId, messageText, starkSig) {
       tags.push(['stark-proof', starkSig.proof, starkSig.pubkey]);
     }
 
+    let contentForChain = messageText;
+    let ipfsCid = null;
+
+    // Use IPFS hybrid storage if enabled
+    if (ipfsEnabled.value) {
+      try {
+        ipfsStatus.value = 'uploading';
+
+        // Create message envelope with metadata
+        const envelope = createMessageEnvelope(
+          messageText,
+          nostr.publicKey,
+          channelId
+        );
+
+        // Upload to IPFS
+        ipfsCid = await uploadToIPFS(envelope);
+        const contentHash = await hashContent(messageText);
+
+        // On-chain: only store CID and hash (much smaller!)
+        contentForChain = JSON.stringify({
+          ipfs: ipfsCid,
+          hash: contentHash.slice(0, 16), // Truncated hash for verification
+          v: 2, // Version 2 = IPFS hybrid
+        });
+
+        tags.push(['ipfs', ipfsCid]);
+        tags.push(['content-hash', contentHash.slice(0, 16)]);
+
+        ipfsStatus.value = 'ready';
+        console.log('[Store] Message uploaded to IPFS:', ipfsCid);
+      } catch (ipfsError) {
+        console.warn('[Store] IPFS upload failed, falling back to on-chain:', ipfsError);
+        ipfsStatus.value = 'error';
+        // Fall back to storing full message on-chain
+      }
+    }
+
     const event = createEvent(
       KIND.CHANNEL_MESSAGE,  // kind 42
-      messageText,
+      contentForChain,
       tags,
       nostr.privateKey
     );
 
-    console.log('[Store] Sending channel message:', event.id, 'to', channelId);
+    console.log('[Store] Sending channel message:', event.id, 'to', channelId, ipfsCid ? `(IPFS: ${ipfsCid})` : '(on-chain)');
 
     for (const relay of nostr.relays.values()) {
       if (relay.connected) {
@@ -221,9 +319,15 @@ export async function sendChannelMessage(channelId, messageText, starkSig) {
       }
     }
 
+    // Add IPFS CID to returned event for reference
+    if (ipfsCid) {
+      event.ipfsCid = ipfsCid;
+    }
+
     return event;
   } catch (error) {
     console.error('[Store] Failed to send channel message:', error);
+    ipfsStatus.value = 'error';
     throw error;
   }
 }
