@@ -170,12 +170,6 @@ function Message({ msg, isOutgoing }) {
         {msg.starkProof && msg.starkVerified === true && (
           <span class="message-badge stark verified">STARK ✓</span>
         )}
-        {msg.starkProof && msg.starkVerified === false && (
-          <span class="message-badge stark failed">STARK ✗</span>
-        )}
-        {msg.starkProof && msg.starkVerified == null && (
-          <span class="message-badge stark">STARK</span>
-        )}
         {(msg.sentViaNostr || msg.fromNostr) && (
           <span class="message-badge nostr">NOSTR</span>
         )}
