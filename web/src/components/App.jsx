@@ -143,13 +143,16 @@ export function App() {
     <div class="lcars-frame">
       {/* Header */}
       <header class="lcars-header">
-        <div class="lcars-elbow lcars-elbow-tl"></div>
+        <div class="lcars-elbow lcars-elbow-tl">
+          <span class="lcars-sanskrit">दृष्टि</span>
+        </div>
         <div class="lcars-bar lcars-header-bar">
-          <span class="lcars-title">DRISTA — The Observer — PQC DECENTRALIZED CHAT — दृष्टि</span>
+          <span class="lcars-title">DRISTA — The Observer — PQC DECENTRALIZED CHAT</span>
         </div>
         <div class="lcars-button-group">
           <button class="lcars-button" onClick={() => { store.activeModal.value = 'settings'; }}>SETTINGS</button>
           <button class="lcars-button" onClick={() => { store.activeModal.value = 'relayInfo'; }}>NODE</button>
+          <img src="/assets/paraxiom_logo.png" alt="Paraxiom" class="lcars-logo" />
         </div>
       </header>
 

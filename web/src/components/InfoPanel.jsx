@@ -12,10 +12,10 @@ export function InfoPanel({ identity, starkIdentity, wasmLoaded, qsslIdentity })
   // Fingerprint - prefer QSSL, fallback to STARK, then Nostr
   const fingerprint = qsslIdentity?.fingerprint || identity?.fingerprint || '-';
 
-  // Encryption type
+  // Encryption type - QSSL uses ML-KEM-768 for post-quantum key exchange
   let encryption = 'NIP-04 / SECP256K1';
   if (qsslIdentity) {
-    encryption = 'QSSL / X25519+ED25519';
+    encryption = 'ML-KEM-768 + Ed25519';  // FIPS 203 PQC KEM
   } else if (starkIdentity) {
     encryption = 'STARK / WINTERFELL';
   }

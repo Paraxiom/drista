@@ -1,8 +1,12 @@
 /**
  * QSSL Transport Layer for Drista
  *
- * Provides encrypted WebSocket connections using QSSL (X25519 + Ed25519 + AES-256-GCM)
- * This wraps the QSSL WASM module for browser use.
+ * Provides post-quantum encrypted WebSocket connections using:
+ * - ML-KEM-768 (FIPS 203) for key encapsulation
+ * - ML-DSA-65 (FIPS 204) for digital signatures
+ * - AES-256-GCM for symmetric encryption
+ *
+ * This wraps the QSSL WASM module (qssl-wasm) for browser use.
  */
 
 let qsslModule = null;

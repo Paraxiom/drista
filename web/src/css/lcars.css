@@ -45,6 +45,20 @@
   border-radius: 0 0 0 var(--radius-xl);
 }
 
+/* Sanskrit text in upper-left elbow */
+.lcars-sanskrit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--bg-dark);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+  z-index: 1;
+  letter-spacing: 0.05em;
+}
+
 .lcars-bar {
   display: flex;
   align-items: center;
@@ -93,6 +107,20 @@
   display: flex;
   gap: var(--spacing-sm);
   align-items: center;
+}
+
+/* Logo in header */
+.lcars-logo {
+  height: 40px;
+  width: auto;
+  margin-left: var(--spacing-sm);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
+}
+
+.lcars-logo:hover {
+  opacity: 1;
 }
 
 /* ═══════════════════════════════════════════════════════════
