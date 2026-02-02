@@ -1,136 +1,207 @@
 # Drista — दृष्टा
 
-Post-quantum encrypted chat over a Substrate blockchain.
+**Post-quantum secure chat for Paraxiom collaborators.**
 
-Messages are end-to-end encrypted (NIP-04), authenticated with STARK zero-knowledge proofs (Winterfell), and persisted on-chain through the Mesh Forum pallet. Transport is secured by QSSH (Falcon-512 lattice-based tunnels) for native clients, with TLS 1.3 fallback for browsers.
+Messages are end-to-end encrypted, authenticated with zero-knowledge proofs, and stored on the QuantumHarmony blockchain. No central server has access to your messages.
 
-## Architecture
+---
+
+## Quick Install
+
+### Web (Fastest)
+
+Open in your browser — no installation required:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Drista App (Preact / Tauri)                            │
-│  NIP-04 E2E encryption · STARK identity proofs          │
-└──────────────┬──────────────────────┬───────────────────┘
-               │                      │
-     ┌─────────▼─────────┐  ┌────────▼────────┐
-     │  QSSH Tunnel      │  │  TLS 1.3 Proxy  │
-     │  Falcon-512        │  │  nginx :7778    │
-     │  AES-256-GCM       │  │  (browsers)     │
-     │  :4242             │  │                 │
-     └─────────┬─────────┘  └────────┬────────┘
-               │                      │
-         ┌─────▼──────────────────────▼──────┐
-         │  NIP-01 Bridge (127.0.0.1:7777)   │
-         │  WebSocket relay · chunking        │
-         └──────────────┬────────────────────┘
-                        │
-              ┌─────────▼─────────┐
-              │  Substrate Node   │
-              │  Mesh Forum pallet│
-              │  :9944            │
-              └───────────────────┘
+https://drista.paraxiom.org
 ```
 
-The bridge only listens on localhost. The blockchain is the persistence and consensus layer — users just see a chat app.
-
-## Quick Start
+### Desktop (macOS/Linux/Windows)
 
 ```bash
-# Web UI + bridge
+# One-line install
+curl -fsSL https://drista.paraxiom.org/install.sh | sh
+
+# Or with Homebrew (macOS)
+brew install paraxiom/tap/drista
+```
+
+### From Source
+
+```bash
+git clone https://github.com/Paraxiom/drista.git
+cd drista
+
+# Web version
+cd web && npm install && npm run dev
+
+# Desktop version
+cd desktop/src-tauri && cargo tauri build
+```
+
+---
+
+## Getting Started
+
+### 1. Create Your Identity
+
+When you first open Drista, you'll generate a cryptographic identity:
+- **Public key** — Share this with collaborators
+- **Private key** — Keep this secret (stored locally, encrypted)
+
+Your identity is verified with STARK zero-knowledge proofs — you prove you authored a message without revealing your private key.
+
+### 2. Join Channels
+
+Default channels for Paraxiom collaborators:
+- `#general` — General discussion
+- `#dev` — Development coordination
+- `#kirq` — KIRQ network operations
+- `#research` — Papers and publications
+
+### 3. Direct Messages
+
+Click any username to start an encrypted DM. Messages are E2E encrypted with NIP-04 — even validators can't read them.
+
+---
+
+## Why Drista?
+
+| Feature | Drista | Signal | Telegram | Slack |
+|---------|--------|--------|----------|-------|
+| Post-quantum encryption | ✅ Falcon-512 | ❌ | ❌ | ❌ |
+| Zero-knowledge identity | ✅ STARK proofs | ❌ | ❌ | ❌ |
+| Decentralized | ✅ Blockchain | ❌ | ❌ | ❌ |
+| No phone number required | ✅ | ❌ | ❌ | ✅ |
+| Message persistence | ✅ On-chain | ❌ | ✅ | ✅ |
+| Open source | ✅ | ✅ | ❌ | ❌ |
+
+---
+
+## Network Status
+
+Three validators run the chat infrastructure:
+
+| Node | Location | Status |
+|------|----------|--------|
+| Alice | Montreal | `wss://51.79.26.123:7778` |
+| Bob | Beauharnois | `wss://51.79.26.168:7778` |
+| Charlie | Frankfurt | `wss://209.38.225.4:7778` |
+
+Check network health: `https://status.paraxiom.org`
+
+---
+
+## Security Model
+
+```
+Your Device                          QuantumHarmony Network
+┌──────────────┐                    ┌──────────────────────┐
+│  Drista App  │                    │  Validator Nodes     │
+│              │   E2E Encrypted    │                      │
+│  Private Key ├───────────────────►│  Encrypted blobs     │
+│  (local)     │   (NIP-04 + QSSH)  │  (can't decrypt)     │
+└──────────────┘                    └──────────────────────┘
+```
+
+**What validators see:** Encrypted message blobs, sender public key, timestamp
+**What validators can't see:** Message content, recipient identity (for DMs)
+
+### Encryption Stack
+
+| Layer | Algorithm | Protection Against |
+|-------|-----------|-------------------|
+| Transport | Falcon-512 + AES-256-GCM | Quantum computers, MITM |
+| Messages | NIP-04 (ECDH + AES-256) | Server compromise |
+| Identity | STARK proofs | Impersonation |
+
+Full security analysis: [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md)
+
+---
+
+## For Developers
+
+### Project Structure
+
+```
+drista/
+├── crates/
+│   ├── qcomm-core/     # Rust crypto: Falcon, SPHINCS+, STARK
+│   ├── qcomm-wasm/     # Browser bindings
+│   └── qcomm-ffi/      # Mobile/desktop bindings
+├── web/
+│   ├── bridge/         # NIP-01 relay ↔ Substrate
+│   └── src/            # Preact UI
+├── desktop/
+│   └── src-tauri/      # Tauri shell
+└── deploy/
+    └── scripts/        # Validator setup
+```
+
+### Run Locally
+
+```bash
+# Start the bridge (connects to production validators)
 cd web
 npm install
-npm run bridge &    # NIP-01 relay on localhost:7777
-npm run dev         # Vite dev server
+npm run bridge &
 
-# Desktop (Tauri)
-cd desktop/src-tauri
-cargo tauri dev
+# Start web UI
+npm run dev
+# Open http://localhost:5173
 ```
 
-## Project Structure
-
-```
-crates/
-  qcomm-core/       Rust core: crypto (Falcon, SPHINCS+, AES-GCM), transport, STARK proofs
-  qcomm-wasm/       WASM bindings for browser
-  qcomm-ffi/        UniFFI bindings for mobile/desktop
-web/
-  bridge/            NIP-01 WebSocket relay ↔ Substrate Mesh Forum
-  relay/             Standalone Nostr relay
-  src/
-    components/      Preact UI (LCARS theme)
-    lib/             Nostr client, STARK identity, WASM loader
-desktop/
-  src-tauri/         Tauri desktop shell
-deploy/
-  qsshd/             Dockerfile, compose, config for PQ tunnel server
-  nginx/             TLS WebSocket proxy config
-  qssh-client/       Client tunnel config template
-  scripts/           Validator and client setup automation
-docs/
-  QSSH_BRIDGE_TRANSPORT.md   Architecture and deployment guide
-  SECURITY_MODEL.md           Threat model and security analysis
-```
-
-## Security Layers
-
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Transport | Falcon-512 + AES-256-GCM (QSSH) | Post-quantum tunnel encryption |
-| Transport (fallback) | TLS 1.3 (nginx) | Classical encryption for browsers |
-| Application | NIP-04 ECDH + AES-256-CBC | End-to-end message encryption |
-| Identity | STARK proofs (Winterfell) | Zero-knowledge authorship verification |
-| Persistence | Substrate consensus | Tamper-proof on-chain message storage |
-
-Even over the classical TLS fallback, message content is E2E encrypted via NIP-04. See [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md) for the full threat model.
-
-## Transport Paths
-
-**Native/Desktop** — Full post-quantum:
-```
-App → qssh tunnel (:4242) [Falcon-512] → Bridge (localhost:7777) → Substrate
-```
-
-**Browser** — TLS fallback:
-```
-Browser → wss://:7778 [TLS 1.3] → Bridge (localhost:7777) → Substrate
-```
-
-## Validators
-
-Three QuantumHarmony validators run the Mesh Forum pallet and bridge:
-
-| Name | Location | QSSH | WSS |
-|------|----------|------|-----|
-| Alice | Montreal | 51.79.26.123:4242 | 51.79.26.123:7778 |
-| Bob | Beauharnois | 51.79.26.168:4242 | 51.79.26.168:7778 |
-| Charlie | Frankfurt | 209.38.225.4:4242 | 209.38.225.4:7778 |
-
-## Deployment
+### Build Desktop App
 
 ```bash
-# Validator setup (builds qsshd, generates keys, configures nginx)
-./deploy/scripts/setup-validator.sh
-
-# Client setup (builds qssh, generates keypair, installs config)
-./deploy/scripts/setup-client.sh
-
-# Connect via PQ tunnel
-qssh qh-alice
+cd desktop/src-tauri
+cargo tauri build
+# Binary in target/release/bundle/
 ```
 
-See [docs/QSSH_BRIDGE_TRANSPORT.md](docs/QSSH_BRIDGE_TRANSPORT.md) for full deployment instructions.
+### Run Your Own Validator
 
-## Tech Stack
+See [docs/QSSH_BRIDGE_TRANSPORT.md](docs/QSSH_BRIDGE_TRANSPORT.md)
 
-- **Rust** — qcomm-core (crypto, transport, STARK proofs), qssh, Substrate runtime
-- **Preact + Signals** — Reactive web UI with LCARS theme
-- **Tauri** — Desktop shell
-- **Substrate** — Mesh Forum pallet for on-chain message persistence
-- **Winterfell** — STARK zero-knowledge proofs
-- **Falcon-512** — Post-quantum signatures (NIST PQC)
-- **Nostr NIP-01/NIP-04** — Relay protocol and E2E encryption
+---
+
+## Troubleshooting
+
+### Can't connect to network
+
+```bash
+# Check if validators are reachable
+curl -I https://51.79.26.123:7778
+```
+
+If all validators are down, check `#status` on the backup channel or contact sylvain@paraxiom.org
+
+### Messages not sending
+
+1. Check your internet connection
+2. Refresh the page / restart the app
+3. Your identity may have expired — regenerate it
+
+### Lost private key
+
+Your messages are E2E encrypted with your private key. If you lose it:
+- You cannot decrypt old messages
+- Generate a new identity and notify collaborators
+
+---
+
+## Contact
+
+- **Issues:** https://github.com/Paraxiom/drista/issues
+- **Email:** sylvain@paraxiom.org
+- **Backup channel:** Signal group (ask for invite)
+
+---
 
 ## License
 
 MIT OR Apache-2.0
+
+---
+
+*Drista (दृष्टा) — Sanskrit for "the seer" or "witness"*
