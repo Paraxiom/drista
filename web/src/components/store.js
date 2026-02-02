@@ -198,6 +198,36 @@ export async function handleIncomingMessage(msg) {
   save();
 }
 
+// ── Send public channel message ─────────────────────────────
+export async function sendChannelMessage(channelId, messageText, starkSig) {
+  try {
+    const tags = [['e', channelId.replace('#', ''), '', 'root']];
+    if (starkSig) {
+      tags.push(['stark-proof', starkSig.proof, starkSig.pubkey]);
+    }
+
+    const event = createEvent(
+      KIND.CHANNEL_MESSAGE,  // kind 42
+      messageText,
+      tags,
+      nostr.privateKey
+    );
+
+    console.log('[Store] Sending channel message:', event.id, 'to', channelId);
+
+    for (const relay of nostr.relays.values()) {
+      if (relay.connected) {
+        relay.publish(event);
+      }
+    }
+
+    return event;
+  } catch (error) {
+    console.error('[Store] Failed to send channel message:', error);
+    throw error;
+  }
+}
+
 // ── Send Nostr DM ───────────────────────────────────────────
 export async function sendNostrDM(recipientPubKey, messageText, starkSig) {
   try {
@@ -322,13 +352,23 @@ export async function addMessage(channelId, message) {
     message.starkPubkey = starkSig.pubkey;
   }
 
-  // Send via Nostr if DM channel
   const channel = getChannel(channelId);
-  if (channel?.nostrPubkey && nostrStatus.value !== 'disconnected') {
+
+  // Send via Nostr
+  if (nostrStatus.value !== 'disconnected') {
     try {
-      const event = await sendNostrDM(channel.nostrPubkey, message.text, starkSig);
-      message.nostrEventId = event.id;
-      message.sentViaNostr = true;
+      let event;
+      if (channel?.nostrPubkey) {
+        // DM channel - send encrypted
+        event = await sendNostrDM(channel.nostrPubkey, message.text, starkSig);
+      } else if (channel?.channelType === 'forum') {
+        // Public forum channel - send as channel message
+        event = await sendChannelMessage(channelId, message.text, starkSig);
+      }
+      if (event) {
+        message.nostrEventId = event.id;
+        message.sentViaNostr = true;
+      }
     } catch (error) {
       console.error('[Store] Failed to send via Nostr, storing locally:', error);
       message.sentViaNostr = false;

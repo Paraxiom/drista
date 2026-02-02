@@ -37,13 +37,11 @@ let pqPublicKey = null;
 const pqPeerKeys = new Map();
 
 // Default relays — QuantumHarmony validator bridges (NIP-01 over Mesh Forum)
-// ws://localhost:7777 connects via QSSH tunnel (PQ-secured) when tunnel is active.
-// wss:// entries are TLS 1.3 fallback for browsers without a QSSH tunnel.
+// Each relay connects to a different validator node for decentralization
 export const DEFAULT_RELAYS = [
-  'ws://localhost:7777',             // Local dev or QSSH tunnel endpoint
-  'wss://51.79.26.123:7778',        // Alice (Montreal) — TLS fallback
-  'wss://51.79.26.168:7778',        // Bob (Beauharnois) — TLS fallback
-  'wss://209.38.225.4:7778',        // Charlie (Frankfurt) — TLS fallback
+  'wss://drista.paraxiom.org/ws',         // Alice (Montreal) — Primary relay
+  'wss://drista.paraxiom.org/ws-bob',     // Bob (Montreal) — Secondary relay
+  'wss://drista.paraxiom.org/ws-charlie', // Charlie (Toronto) — Tertiary relay
 ];
 
 /**

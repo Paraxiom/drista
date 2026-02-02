@@ -1,0 +1,14 @@
+{
+  "name": "drista-bridge",
+  "version": "1.0.0",
+  "description": "Drista NIP-01 bridge with QSSL encryption",
+  "type": "commonjs",
+  "main": "qssl-server.js",
+  "scripts": {
+    "start": "node qssl-server.js",
+    "bridge": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.0.0"
+  }
+}

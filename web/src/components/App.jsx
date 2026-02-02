@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { initWasm, isWasmReady, getWasm } from '../lib/wasm.js';
 import { StarkIdentityManager } from '../lib/stark-identity.js';
+import { initQssl, getQsslIdentity, isQsslAvailable } from '../lib/qssl-transport.js';
 import * as store from './store.js';
 import { ChannelList } from './ChannelList.jsx';
 import { ChatView } from './ChatView.jsx';
@@ -14,12 +15,13 @@ import { ModalOverlay } from './Modal.jsx';
 export function App() {
   const [identity, setIdentity] = useState(null);
   const [starkIdentity, setStarkIdentity] = useState(null);
+  const [qsslIdentity, setQsslIdentity] = useState(null);
   const [wasmLoaded, setWasmLoaded] = useState(false);
   const [statusText, setStatusText] = useState('INITIALIZING');
 
   useEffect(() => {
     (async () => {
-      // Step 1: Load WASM
+      // Step 1: Load WASM (PQ proofs)
       let wasm = false;
       try {
         setStatusText('LOADING WASM');
@@ -31,7 +33,19 @@ export function App() {
         console.warn('[Drista] WASM unavailable, running without PQ proofs:', error);
       }
 
-      // Step 2: STARK identity (if WASM loaded)
+      // Step 2: QSSL identity (encrypted transport)
+      let qssl = null;
+      try {
+        setStatusText('QSSL INIT');
+        await initQssl();
+        qssl = getQsslIdentity();
+        setQsslIdentity({ fingerprint: qssl.fingerprint });
+        console.log('[App] QSSL identity ready:', qssl.fingerprint);
+      } catch (error) {
+        console.warn('[App] QSSL unavailable:', error);
+      }
+
+      // Step 3: STARK identity (if WASM loaded)
       let id = null;
       let stark = null;
       if (wasm) {
@@ -60,7 +74,7 @@ export function App() {
         }
       }
 
-      // Step 3: Nostr init
+      // Step 4: Nostr init
       try {
         if (!id) {
           setStatusText('GENERATING KEYS');
@@ -97,6 +111,7 @@ export function App() {
     'INITIALIZING': 'var(--lcars-champagne)',
     'GENERATING KEYS': 'var(--lcars-mauve)',
     'LOADING WASM': 'var(--lcars-lavender)',
+    'QSSL INIT': 'var(--lcars-sage)',
     'STARK INIT': 'var(--lcars-mauve)',
     'NOSTR TRANSPORT': 'var(--lcars-peach)',
     'ERROR': 'var(--lcars-rose)',
@@ -145,7 +160,7 @@ export function App() {
       <main class="lcars-main">
         <ChannelList />
         <ChatView identity={identity} starkIdentity={starkIdentity} wasmLoaded={wasmLoaded} />
-        <InfoPanel identity={identity} starkIdentity={starkIdentity} wasmLoaded={wasmLoaded} />
+        <InfoPanel identity={identity} starkIdentity={starkIdentity} wasmLoaded={wasmLoaded} qsslIdentity={qsslIdentity} />
       </main>
 
       {/* Footer */}

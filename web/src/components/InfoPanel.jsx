@@ -5,16 +5,18 @@
 import { isWasmReady, getWasm } from '../lib/wasm.js';
 import * as store from './store.js';
 
-export function InfoPanel({ identity, starkIdentity, wasmLoaded }) {
+export function InfoPanel({ identity, starkIdentity, wasmLoaded, qsslIdentity }) {
   const relays = store.connectedRelays.value;
   const transport = store.transportSecurity.value;
 
-  // Fingerprint
-  const fingerprint = identity?.fingerprint || '-';
+  // Fingerprint - prefer QSSL, fallback to STARK, then Nostr
+  const fingerprint = qsslIdentity?.fingerprint || identity?.fingerprint || '-';
 
   // Encryption type
   let encryption = 'NIP-04 / SECP256K1';
-  if (starkIdentity) {
+  if (qsslIdentity) {
+    encryption = 'QSSL / X25519+ED25519';
+  } else if (starkIdentity) {
     encryption = 'STARK / WINTERFELL';
   }
 

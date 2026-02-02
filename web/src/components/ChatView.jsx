@@ -87,7 +87,41 @@ export function ChatView({ identity, starkIdentity, wasmLoaded }) {
       </div>
 
       <div class="lcars-chat-messages" ref={messagesRef}>
-        {!channel && null}
+        {!channel && (
+          <div class="welcome-panel">
+            <h2>Welcome to Drista</h2>
+            <p class="subtitle">Post-quantum secure messaging for Paraxiom collaborators</p>
+
+            <div class="welcome-section">
+              <h3>What is Drista?</h3>
+              <p>Drista is a decentralized communication app built on the QuantumHarmony blockchain. Your messages are end-to-end encrypted and authenticated with zero-knowledge proofs.</p>
+            </div>
+
+            <div class="welcome-section">
+              <h3>Getting Started</h3>
+              <ol>
+                <li><strong>Your identity is ready</strong> — A cryptographic keypair was generated for you automatically.</li>
+                <li><strong>Select #drista channel</strong> — Click on the channel in the left panel to join the public forum.</li>
+                <li><strong>Start a DM</strong> — Click any username to start an encrypted direct message.</li>
+              </ol>
+            </div>
+
+            <div class="welcome-section">
+              <h3>Security Features</h3>
+              <ul>
+                <li><strong>STARK Proofs</strong> — Messages are signed with zero-knowledge proofs</li>
+                <li><strong>E2E Encryption</strong> — DMs use NIP-04 encryption (ECDH + AES-256)</li>
+                <li><strong>Post-Quantum Ready</strong> — ML-KEM-1024 + Falcon-512 when WASM loads</li>
+                <li><strong>Decentralized</strong> — Stored on QuantumHarmony validator nodes</li>
+              </ul>
+            </div>
+
+            <div class="welcome-section status-section">
+              <h3>Connection Status</h3>
+              <p>Status indicator in the header shows: <strong>CONNECTED</strong> (all relays), <strong>PARTIAL</strong> (some relays), or <strong>OFFLINE</strong></p>
+            </div>
+          </div>
+        )}
         {channel && msgs.length === 0 && (
           <div class="no-messages">
             <p>No messages yet</p>
