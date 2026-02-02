@@ -16,6 +16,7 @@ import {
   createMessageEnvelope,
   getIPFSStatus,
 } from '../lib/ipfs.js';
+import * as pqDm from '../lib/pq-dm.js';
 
 // ── Reactive state ──────────────────────────────────────────
 export const channels = signal([]);
@@ -134,6 +135,9 @@ export async function handleIncomingMessage(msg) {
   // Determine channel: use msg.channelId for forum messages, or create DM channel
   let channelId;
 
+  // Check if this is a PQ-encrypted message
+  const isPqEncrypted = msg.pqEncrypted === true;
+
   if (msg.channelId) {
     // Forum/channel message - normalize to #channel format
     channelId = msg.channelId.startsWith('#') ? msg.channelId : `#${msg.channelId}`;
@@ -156,11 +160,22 @@ export async function handleIncomingMessage(msg) {
         name: msg.from.slice(0, 12) + '...',
         channelType: 'direct',
         encrypted: true,
-        pqcEnabled: false,
+        pqcEnabled: isPqEncrypted,
         unreadCount: 0,
         nostrPubkey: msg.from,
       });
+    } else if (isPqEncrypted) {
+      // Update channel to mark PQC capability discovered
+      channels.value = channels.value.map(ch =>
+        ch.id === channelId ? { ...ch, pqcEnabled: true } : ch
+      );
     }
+  }
+
+  // Register sender's PQ key if present in message tags
+  const pqTag = msg.tags?.find(t => t[0] === 'pq');
+  if (pqTag && pqTag[1]) {
+    pqDm.registerPeerKey(msg.from, pqTag[1]);
   }
 
   // Check if this is an IPFS hybrid message
@@ -233,6 +248,7 @@ export async function handleIncomingMessage(msg) {
     text: messageContent,
     timestamp: msg.timestamp,
     encrypted: msg.encrypted,
+    pqcVerified: isPqEncrypted, // PQC badge flag
     relay: msg.relay,
     fromNostr: true,
     starkProof,
@@ -340,16 +356,37 @@ export async function sendNostrDM(recipientPubKey, messageText, starkSig) {
       tags.push(['stark-proof', starkSig.proof, starkSig.pubkey]);
     }
 
-    const ciphertext = await encryptDM(messageText, recipientPubKey, nostr.privateKey);
+    let event;
 
-    const event = createEvent(
-      KIND.ENCRYPTED_DM,
-      ciphertext,
-      tags,
-      nostr.privateKey
-    );
+    // Check if recipient has PQ key - use PQC encryption if available
+    if (pqDm.isPqDmReady() && pqDm.hasPqKey(recipientPubKey)) {
+      // PQC path: ML-KEM-768 + AES-256-GCM
+      const { content, senderEk } = await pqDm.encryptPqDm(recipientPubKey, messageText);
 
-    console.log('[Store] Sending DM event:', event.id);
+      // Add our EK to tags for key discovery
+      tags.push(['pq', senderEk]);
+
+      event = createEvent(
+        KIND.PQ_ENCRYPTED_DM,
+        content,
+        tags,
+        nostr.privateKey
+      );
+
+      console.log('[Store] Sending PQC-encrypted DM:', event.id);
+    } else {
+      // Fallback to NIP-04 (legacy secp256k1)
+      const ciphertext = await encryptDM(messageText, recipientPubKey, nostr.privateKey);
+
+      event = createEvent(
+        KIND.ENCRYPTED_DM,
+        ciphertext,
+        tags,
+        nostr.privateKey
+      );
+
+      console.log('[Store] Sending NIP-04 DM (legacy):', event.id);
+    }
 
     for (const relay of nostr.relays.values()) {
       if (relay.connected) {
@@ -362,6 +399,45 @@ export async function sendNostrDM(recipientPubKey, messageText, starkSig) {
     console.error('[Store] Failed to send DM:', error);
     throw error;
   }
+}
+
+// ── PQ-DM initialization ────────────────────────────────────
+export async function initPqDm() {
+  try {
+    await pqDm.initPqDm();
+    console.log('[Store] PQ-DM initialized');
+    return true;
+  } catch (error) {
+    console.warn('[Store] PQ-DM initialization failed:', error);
+    return false;
+  }
+}
+
+export async function publishPqKey() {
+  if (!pqDm.isPqDmReady()) {
+    console.warn('[Store] PQ-DM not ready, cannot publish key');
+    return null;
+  }
+  try {
+    const event = await pqDm.publishPqKey(nostr);
+    console.log('[Store] Published PQ key');
+    return event;
+  } catch (error) {
+    console.error('[Store] Failed to publish PQ key:', error);
+    return null;
+  }
+}
+
+export function isPqDmReady() {
+  return pqDm.isPqDmReady();
+}
+
+export function hasPqKey(pubkey) {
+  return pqDm.hasPqKey(pubkey);
+}
+
+export async function fetchPqKey(pubkey) {
+  return pqDm.fetchPqKey(nostr, pubkey);
 }
 
 // ── STARK identity ──────────────────────────────────────────
@@ -464,7 +540,10 @@ export async function addMessage(channelId, message) {
       let event;
       if (channel?.nostrPubkey) {
         // DM channel - send encrypted
+        // Check if we'll use PQC for this message
+        const willUsePqc = pqDm.isPqDmReady() && pqDm.hasPqKey(channel.nostrPubkey);
         event = await sendNostrDM(channel.nostrPubkey, message.text, starkSig);
+        message.pqcVerified = willUsePqc; // Mark outgoing messages with PQC flag
       } else if (channel?.channelType === 'forum') {
         // Public forum channel - send as channel message
         event = await sendChannelMessage(channelId, message.text, starkSig);

@@ -92,6 +92,20 @@ export function App() {
         setIdentity(id);
         setStatusText('CONNECTING');
         await store.connectNostr();
+
+        // Step 4: Initialize PQ-DM (post-quantum encryption)
+        if (wasm) {
+          try {
+            setStatusText('PQ-DM INIT');
+            await store.initPqDm();
+            // Publish our PQ encapsulation key for discovery
+            await store.publishPqKey();
+            console.log('[App] PQ-DM initialized and key published');
+          } catch (error) {
+            console.warn('[App] PQ-DM init failed, falling back to NIP-04:', error);
+          }
+        }
+
         setStatusText('CONNECTED');
         console.log('[App] Initialized, identity type:', id.type, 'fingerprint:', id.fingerprint);
       } catch (error) {
@@ -114,6 +128,7 @@ export function App() {
     'QSSL INIT': 'var(--lcars-sage)',
     'STARK INIT': 'var(--lcars-mauve)',
     'NOSTR TRANSPORT': 'var(--lcars-peach)',
+    'PQ-DM INIT': 'linear-gradient(135deg, #7ecfdf 0%, #5ab8c8 100%)',
     'ERROR': 'var(--lcars-rose)',
   };
 

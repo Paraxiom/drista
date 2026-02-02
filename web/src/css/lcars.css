@@ -568,6 +568,14 @@
   border: 1px solid rgba(194, 143, 143, 0.35);
 }
 
+.message-badge.pqc {
+  background: linear-gradient(135deg, rgba(100, 180, 200, 0.3) 0%, rgba(80, 160, 180, 0.25) 100%);
+  color: #7ecfdf;
+  border: 1px solid rgba(100, 180, 200, 0.4);
+  font-weight: 700;
+  text-shadow: 0 0 4px rgba(126, 207, 223, 0.3);
+}
+
 /* ═══════════════════════════════════════════════════════════
    INFO PANEL
    ═══════════════════════════════════════════════════════════ */

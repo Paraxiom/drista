@@ -173,7 +173,10 @@ function Message({ msg, isOutgoing }) {
         {(msg.sentViaNostr || msg.fromNostr) && (
           <span class="message-badge nostr">NOSTR</span>
         )}
-        {msg.encrypted && (
+        {msg.pqcVerified === true && (
+          <span class="message-badge pqc">PQC</span>
+        )}
+        {msg.encrypted && !msg.pqcVerified && (
           <span class="message-badge encrypted">ENC</span>
         )}
       </span>

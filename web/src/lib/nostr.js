@@ -10,6 +10,7 @@ import { schnorr } from '@noble/curves/secp256k1.js';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex as nobleToHex, hexToBytes as nobleFromHex } from '@noble/hashes/utils';
 import * as pqCrypto from './pq-crypto.js';
+import * as pqDm from './pq-dm.js';
 
 // Nostr event kinds
 export const KIND = {
@@ -26,7 +27,8 @@ export const KIND = {
   CHANNEL_MESSAGE: 42,
   SEALED_DM: 1059,        // NIP-17
   GIFT_WRAP: 1060,        // NIP-17
-  PQ_ENCRYPTED_DM: 20004, // Post-Quantum encrypted DM (ML-KEM + Triple Ratchet)
+  PQ_ENCRYPTED_DM: 20004, // Post-Quantum encrypted DM (ML-KEM-768 + AES-256-GCM)
+  PQ_KEY: 30078,          // PQ key publication (NIP-33 replaceable, d=ml-kem-1024)
 };
 
 // PQ crypto state
@@ -479,27 +481,36 @@ export class NostrClient {
   async handleEvent({ subId, event, relay }) {
     this.emit('event', { subId, event, relay });
 
-    // Handle PQ-encrypted DMs (post-quantum)
+    // Handle PQ key publications (kind 30078)
+    if (event.kind === KIND.PQ_KEY) {
+      const ekTag = event.tags.find(t => t[0] === 'ek');
+      const dTag = event.tags.find(t => t[0] === 'd');
+      if (dTag && dTag[1] === 'ml-kem-1024' && ekTag && ekTag[1]) {
+        registerPqPeerKey(event.pubkey, ekTag[1]);
+        console.log('[Nostr] Discovered PQ key for:', event.pubkey.slice(0, 16) + '...');
+      }
+    }
+
+    // Handle PQ-encrypted DMs (post-quantum ML-KEM-768 + AES-256-GCM)
     if (event.kind === KIND.PQ_ENCRYPTED_DM) {
       try {
         const senderPubKey = event.pubkey;
 
-        // Extract sender's PQ public key from tags
+        // Extract sender's PQ encapsulation key from tags
         const pqTag = event.tags.find(t => t[0] === 'pq');
         if (pqTag && pqTag[1]) {
+          // Register for future messages
           registerPqPeerKey(senderPubKey, pqTag[1]);
+          pqDm.registerPeerKey(senderPubKey, pqTag[1]);
         }
 
-        // Initialize PQ crypto if needed
-        if (!pqInitialized) {
-          await initPqCrypto();
+        // Initialize PQ-DM if needed
+        if (!pqDm.isPqDmReady()) {
+          await pqDm.initPqDm();
         }
 
-        const content = await pqCrypto.parsePqDmContent(
-          senderPubKey,
-          event.content,
-          pqTag ? pqTag[1] : null
-        );
+        // Decrypt using ML-KEM-768 + AES-256-GCM
+        const content = await pqDm.decryptPqDm(senderPubKey, event.content);
 
         this.emit('message', {
           id: event.id,
@@ -595,6 +606,11 @@ export class NostrClient {
       {
         kinds: [KIND.TEXT_NOTE, KIND.CHANNEL_MESSAGE],
         limit: 100,
+      },
+      // PQ key publications (for key discovery)
+      {
+        kinds: [KIND.PQ_KEY],
+        '#d': ['ml-kem-1024'],
       },
     ];
 
