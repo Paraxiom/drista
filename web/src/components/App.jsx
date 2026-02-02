@@ -145,10 +145,7 @@ export function App() {
       <header class="lcars-header">
         <div class="lcars-elbow lcars-elbow-tl"></div>
         <div class="lcars-bar lcars-header-bar">
-          <span class="lcars-title">DRISTA — PQC DECENTRALIZED — दृष्टि</span>
-          <span class="lcars-status" style={{ background: statusColors[derivedStatus] || 'var(--lcars-champagne)' }}>
-            {derivedStatus}
-          </span>
+          <span class="lcars-title">DRISTA — The Observer — PQC DECENTRALIZED CHAT — दृष्टि</span>
         </div>
         <div class="lcars-button-group">
           <button class="lcars-button" onClick={() => { store.activeModal.value = 'settings'; }}>SETTINGS</button>
