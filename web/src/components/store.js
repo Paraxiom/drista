@@ -259,7 +259,8 @@ export async function handleIncomingMessage(msg) {
   };
 
   const old = messages.value[channelId] || [];
-  if (old.find(m => m.id === msg.id)) return; // duplicate
+  // Deduplicate: check both local ID and nostrEventId (for messages we sent that echo back)
+  if (old.find(m => m.id === msg.id || m.nostrEventId === msg.id)) return; // duplicate
 
   // Immutable update
   messages.value = { ...messages.value, [channelId]: [...old, message] };
