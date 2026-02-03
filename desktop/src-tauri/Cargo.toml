@@ -1,17 +1,21 @@
 [package]
 name = "quantum-communicator-desktop"
 version = "0.1.0"
-edition = "2024"
-description = "Desktop app for Quantum Communicator"
+edition = "2021"
+description = "Desktop app for Quantum Communicator with PQC and BLE mesh"
 
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.0", features = ["shell-open"] }
+tauri = { version = "2.0", features = [] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-qcomm-core = { path = "../../crates/qcomm-core" }
+tokio = { version = "1.43", features = ["rt-multi-thread", "sync"] }
+hex = "0.4"
+
+# Core with native crypto and BLE support
+qcomm-core = { path = "../../crates/qcomm-core", features = ["native-crypto", "ble"] }
 
 [features]
 default = ["custom-protocol"]

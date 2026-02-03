@@ -4,6 +4,7 @@ members = [
     "crates/qcomm-core",
     "crates/qcomm-wasm",
     "crates/qcomm-ffi",
+    "desktop/src-tauri",
 ]
 
 [workspace.package]

@@ -23,19 +23,23 @@ const QSSL_STATE = {
 
 /**
  * Initialize the QSSL WASM module
+ * Note: QSSL WASM is optional and may not be available
  */
 export async function initQssl() {
   if (qsslModule) return qsslModule;
 
   try {
-    const wasm = await import('../qssl/qssl_wasm.js');
+    // Dynamic import path constructed at runtime to avoid Vite bundling issues
+    // when the module doesn't exist
+    const wasmPath = '../qssl/qssl_wasm.js';
+    const wasm = await import(/* @vite-ignore */ wasmPath);
     await wasm.default();
     qsslModule = wasm;
     console.log('[QSSL] WASM module initialized, version:', wasm.version());
     return qsslModule;
   } catch (error) {
-    console.error('[QSSL] Failed to initialize WASM:', error);
-    throw error;
+    console.warn('[QSSL] WASM module not available (optional):', error.message);
+    return null;
   }
 }
 

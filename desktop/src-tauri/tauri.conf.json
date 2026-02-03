@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.quantumharmony.communicator",
   "build": {
-    "beforeDevCommand": "cd ../web && npm run dev",
+    "beforeDevCommand": "cd ../../web && npm run dev",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "cd ../web && npm run build",
-    "frontendDist": "../web/dist"
+    "beforeBuildCommand": "cd ../../web && npm run build",
+    "frontendDist": "../../web/dist"
   },
   "app": {
     "windows": [
