@@ -29,8 +29,8 @@ native-crypto = [
     "dep:whoami",
 ]
 
-# Bluetooth Low Energy transport
-ble = ["dep:btleplug"]
+# Bluetooth Low Energy transport (requires native-crypto for PQC)
+ble = ["dep:btleplug", "native-crypto"]
 
 # Hardware QRNG support
 qrng = []

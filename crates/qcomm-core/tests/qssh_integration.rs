@@ -1,6 +1,11 @@
 //! Integration tests for QSSH + Drista
 //!
 //! Tests the integration between the QSSH library and Drista's transport layer.
+//!
+//! These tests require the `qssh` feature and the external qssh crate.
+
+// Skip this entire test file - qssh crate not available yet
+#![cfg(all(feature = "qssh", feature = "native-crypto"))]
 
 use qcomm_core::transport::qssh::{
     QsshTransport, QsshConfig, SessionState, TransportTier,

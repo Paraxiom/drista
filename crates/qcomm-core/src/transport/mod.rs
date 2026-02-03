@@ -10,8 +10,9 @@
 pub mod ble;
 #[cfg(feature = "native-crypto")]
 pub mod nostr;
-#[cfg(feature = "native-crypto")]
-pub mod qssh;
+// QSSH requires external qssh crate - disabled until available
+// #[cfg(all(feature = "native-crypto", feature = "qssh"))]
+// pub mod qssh;
 #[cfg(feature = "native-crypto")]
 pub mod onchain;
 

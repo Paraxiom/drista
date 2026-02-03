@@ -219,6 +219,11 @@ impl PqTripleRatchet {
         self.our_keypair.public_key()
     }
 
+    /// Get our current public key as bytes
+    pub fn our_public_key_bytes(&self) -> Vec<u8> {
+        self.our_keypair.public_key().as_bytes().to_vec()
+    }
+
     /// Encrypt a message
     pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<(RatchetHeader, Vec<u8>)> {
         // Ensure we have a sending chain

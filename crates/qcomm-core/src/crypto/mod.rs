@@ -28,16 +28,16 @@ pub mod qrng;
 pub mod aead;
 pub mod stark;
 
-// Re-exports for native
+// Re-exports for native (preferred when both features enabled)
 #[cfg(feature = "native-crypto")]
 pub use pq::{MlKemKeyPair, MlKemPublicKey, MlKemCiphertext, SharedSecret, SphincsKeyPair};
 #[cfg(feature = "native-crypto")]
 pub use ratchet::{PqTripleRatchet, RatchetHeader};
 
-// Re-exports for WASM
-#[cfg(feature = "wasm-crypto")]
+// Re-exports for WASM (only when native-crypto is NOT enabled)
+#[cfg(all(feature = "wasm-crypto", not(feature = "native-crypto")))]
 pub use pq_wasm::{MlKemKeyPair, MlKemPublicKey, MlKemCiphertext, SharedSecret};
-#[cfg(feature = "wasm-crypto")]
+#[cfg(all(feature = "wasm-crypto", not(feature = "native-crypto")))]
 pub use ratchet_wasm::{PqTripleRatchet, RatchetHeader};
 
 pub use aead::{encrypt, decrypt};
