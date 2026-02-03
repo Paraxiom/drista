@@ -61,7 +61,11 @@ Default channels for Paraxiom collaborators:
 
 ### 3. Direct Messages
 
-Click any username to start an encrypted DM. Messages are E2E encrypted with NIP-04 — even validators can't read them.
+Click any username to start an encrypted DM. Messages are encrypted with **ML-KEM-1024 + AES-256-GCM** — post-quantum secure encryption that protects against both classical and quantum computers.
+
+- **PQC badge** — Messages show a cyan "PQC" badge when using post-quantum encryption
+- **Automatic upgrade** — Falls back to NIP-04 for contacts without PQ keys
+- **Key discovery** — PQ public keys are automatically published and discovered via Nostr
 
 ---
 
@@ -69,11 +73,11 @@ Click any username to start an encrypted DM. Messages are E2E encrypted with NIP
 
 | Feature | Drista | Signal | Telegram | Slack |
 |---------|--------|--------|----------|-------|
-| Post-quantum encryption | ✅ Falcon-512 | ❌ | ❌ | ❌ |
+| Post-quantum encryption | ✅ ML-KEM-1024 | ❌ | ❌ | ❌ |
 | Zero-knowledge identity | ✅ STARK proofs | ❌ | ❌ | ❌ |
-| Decentralized | ✅ Blockchain | ❌ | ❌ | ❌ |
+| Decentralized | ✅ Nostr + IPFS | ❌ | ❌ | ❌ |
 | No phone number required | ✅ | ❌ | ❌ | ✅ |
-| Message persistence | ✅ On-chain | ❌ | ✅ | ✅ |
+| Message persistence | ✅ On-chain + IPFS | ❌ | ✅ | ✅ |
 | Open source | ✅ | ✅ | ❌ | ❌ |
 
 ---
@@ -95,27 +99,61 @@ Check network health: `https://status.paraxiom.org`
 ## Security Model
 
 ```
-Your Device                          QuantumHarmony Network
+Your Device                          Nostr Relays / IPFS
 ┌──────────────┐                    ┌──────────────────────┐
-│  Drista App  │                    │  Validator Nodes     │
+│  Drista App  │                    │  Relay Nodes         │
 │              │   E2E Encrypted    │                      │
-│  Private Key ├───────────────────►│  Encrypted blobs     │
-│  (local)     │   (NIP-04 + QSSH)  │  (can't decrypt)     │
+│  ML-KEM Key  ├───────────────────►│  Encrypted blobs     │
+│  STARK ID    │   (ML-KEM + AES)   │  (can't decrypt)     │
+│  (local)     │                    │                      │
 └──────────────┘                    └──────────────────────┘
 ```
 
-**What validators see:** Encrypted message blobs, sender public key, timestamp
-**What validators can't see:** Message content, recipient identity (for DMs)
+**What relays see:** Encrypted ciphertext, sender pubkey, timestamp, KEM ciphertext
+**What relays can't see:** Message content, shared secrets, plaintext
 
 ### Encryption Stack
 
 | Layer | Algorithm | Protection Against |
 |-------|-----------|-------------------|
-| Transport | Falcon-512 + AES-256-GCM | Quantum computers, MITM |
-| Messages | NIP-04 (ECDH + AES-256) | Server compromise |
+| DM Encryption | ML-KEM-1024 + AES-256-GCM | Quantum computers, MITM |
+| Key Derivation | HKDF-SHA256 | Key reuse attacks |
 | Identity | STARK proofs | Impersonation |
+| Storage | IPFS + content hashing | Data loss, tampering |
+| Fallback | NIP-04 (ECDH + AES-256) | Legacy compatibility |
 
 Full security analysis: [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md)
+
+### PQ-DM Protocol
+
+Post-quantum encrypted direct messages use ML-KEM-1024 (FIPS 203) for key encapsulation:
+
+```
+Sender                              Recipient
+   |                                    |
+   |-- Fetch recipient's EK (1568 B) -->|
+   |                                    |
+   |-- Encapsulate(EK) ---------------> |
+   |   -> ciphertext (1568 B)           |
+   |   -> shared_secret (32 B)          |
+   |                                    |
+   |-- HKDF(shared_secret) -----------> |
+   |   -> AES key (32 B)                |
+   |                                    |
+   |-- AES-256-GCM(message) ----------> |
+   |                                    |
+   |-- Send kind 20004 event ---------->|
+   |   content: KEM_CT + nonce + AES_CT |
+   |                                    |
+   |                   Decapsulate(CT) -|
+   |                   -> shared_secret |
+   |                   HKDF -> AES key  |
+   |                   AES decrypt      |
+```
+
+**Nostr Event Kinds:**
+- `30078` — PQ key publication (encapsulation key, replaceable)
+- `20004` — PQ encrypted DM
 
 ---
 
@@ -126,16 +164,22 @@ Full security analysis: [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md)
 ```
 drista/
 ├── crates/
-│   ├── qcomm-core/     # Rust crypto: Falcon, SPHINCS+, STARK
-│   ├── qcomm-wasm/     # Browser bindings
+│   ├── qcomm-core/     # Rust crypto: ML-KEM, SPHINCS+, STARK
+│   ├── qcomm-wasm/     # Browser WASM bindings
 │   └── qcomm-ffi/      # Mobile/desktop bindings
 ├── web/
-│   ├── bridge/         # NIP-01 relay ↔ Substrate
-│   └── src/            # Preact UI
+│   ├── bridge/         # NIP-01 relay bridge
+│   ├── src/
+│   │   ├── lib/
+│   │   │   ├── pq-dm.js      # PQ-DM encryption (ML-KEM-1024)
+│   │   │   ├── nostr.js      # Nostr protocol client
+│   │   │   └── ipfs.js       # IPFS hybrid storage
+│   │   └── components/       # Preact UI
+│   └── tests/                # Test suites (43 tests)
 ├── desktop/
 │   └── src-tauri/      # Tauri shell
 └── deploy/
-    └── scripts/        # Validator setup
+    └── scripts/        # Deployment scripts
 ```
 
 ### Run Locally
@@ -149,6 +193,21 @@ npm run bridge &
 # Start web UI
 npm run dev
 # Open http://localhost:5173
+```
+
+### Run Tests
+
+```bash
+cd web
+
+# PQ Crypto tests (21 tests)
+node --experimental-wasm-modules tests/pq-crypto.test.js
+
+# PQ-DM tests (11 tests)
+node --experimental-wasm-modules tests/pq-dm.test.js
+
+# Extended tests (11 tests)
+node --experimental-wasm-modules tests/pq-dm-extended.test.js
 ```
 
 ### Build Desktop App
