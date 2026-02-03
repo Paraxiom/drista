@@ -98,19 +98,103 @@ Check network health: `https://status.paraxiom.org`
 
 ## Security Model
 
+### What's Protected vs. What's Not
+
+| Layer | Protection | Quantum-Safe? |
+|-------|------------|---------------|
+| Message content | ML-KEM-1024 + AES-256-GCM | ✅ Yes |
+| Message relay | Multiple Nostr relays | ✅ Decentralized |
+| Message storage | IPFS content-addressed | ✅ Decentralized |
+| **Web app delivery** | Standard HTTPS/TLS | ❌ Classical crypto |
+| **DNS lookup** | ISP sees domain | ❌ Metadata exposed |
+| **Your IP address** | Server/relays see it | ❌ Not anonymous |
+
 ```
-Your Device                          Nostr Relays / IPFS
-┌──────────────┐                    ┌──────────────────────┐
-│  Drista App  │                    │  Relay Nodes         │
-│              │   E2E Encrypted    │                      │
-│  ML-KEM Key  ├───────────────────►│  Encrypted blobs     │
-│  STARK ID    │   (ML-KEM + AES)   │  (can't decrypt)     │
-│  (local)     │                    │                      │
-└──────────────┘                    └──────────────────────┘
+Your Browser
+     │
+     │ ← Standard HTTPS (NOT quantum-safe)
+     ▼
+drista.paraxiom.org  ← Centralized server, sees your IP
+     │
+     │ Downloads JavaScript
+     ▼
+┌─────────────────┐
+│  Drista App     │
+│  (in browser)   │
+└────────┬────────┘
+         │
+         │ ← ML-KEM-1024 (quantum-safe) ← ONLY THIS IS PQC
+         ▼
+   Nostr Relays / IPFS
 ```
 
 **What relays see:** Encrypted ciphertext, sender pubkey, timestamp, KEM ciphertext
 **What relays can't see:** Message content, shared secrets, plaintext
+
+### Privacy Levels
+
+| Method | Content Security | IP Privacy | Metadata Privacy |
+|--------|-----------------|------------|------------------|
+| Web app (drista.paraxiom.org) | ✅ PQC | ❌ Exposed | ❌ Exposed |
+| Web app + Tor | ✅ PQC | ✅ Hidden | ⚠️ Timing attacks |
+| Desktop app | ✅ PQC | ❌ Exposed | ❌ Exposed |
+| Desktop app + Tor | ✅ PQC | ✅ Hidden | ⚠️ Timing attacks |
+| Self-hosted + Tor | ✅ PQC | ✅ Hidden | ✅ Better |
+
+**Important:** Tor uses classical cryptography. A "harvest now, decrypt later" attacker could correlate your traffic in the future. See [Achieving Full PQC Privacy](#achieving-full-pqc-privacy) below.
+
+### Achieving Full PQC Privacy
+
+**The problem:** Tor, VPNs, and mixnets all use classical cryptography (RSA, Curve25519). An adversary can:
+1. Capture your encrypted traffic today
+2. Wait for quantum computers
+3. Decrypt the *transport layer* to see metadata (who talked to whom, when)
+
+**Your message content is safe** (ML-KEM-1024), but **metadata is not**.
+
+**Current options (none are perfect):**
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| Tor + Drista | Hides IP today | Tor crypto is classical, metadata harvestable |
+| VPN + Drista | Easy setup | VPN provider sees everything, classical crypto |
+| Self-host relay on .onion | No central server | Still classical Tor crypto |
+| Desktop app (no web) | No JS trust issues | IP still exposed without Tor |
+
+**Future solutions being developed:**
+
+1. **Tor Project** — Researching PQC integration ([blog post](https://blog.torproject.org/))
+2. **Nym mixnet** — Planning PQC upgrade
+3. **PQTLS** — Chrome/Cloudflare testing Kyber in TLS 1.3
+
+**For maximum privacy today:**
+
+```bash
+# 1. Build from source (don't trust web delivery)
+git clone https://github.com/Paraxiom/drista.git
+cd drista/web && npm install && npm run build
+
+# 2. Verify the build matches release hashes
+sha256sum dist/assets/*.js
+
+# 3. Run behind Tor (hides IP, classical crypto for transport)
+torsocks npm run dev
+# Or access via Tor Browser
+
+# 4. Use multiple identities across sessions (limits correlation)
+```
+
+**Do we need to write a PQC Tor?**
+
+Yes, eventually. The components needed:
+- PQC key exchange for circuit establishment (ML-KEM)
+- PQC signatures for relay authentication (SPHINCS+, Dilithium)
+- PQC onion encryption layers
+
+This is a massive undertaking. In the meantime, Drista's approach is:
+- **Defense in depth**: Even if Tor transport is broken later, message content remains PQC-protected
+- **Metadata minimization**: Nostr's design doesn't require account registration
+- **Relay diversity**: Messages go through multiple independent relays
 
 ### Encryption Stack
 
