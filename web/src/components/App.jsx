@@ -25,6 +25,21 @@ export function App() {
     setMobileMenuOpen(false);
   }, []);
 
+  // Admin keyboard shortcut: Ctrl+Shift+K to clear messages
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'K') {
+        e.preventDefault();
+        if (confirm('Clear all local messages? (Messages still exist on relay)')) {
+          store.clearAllMessages();
+          alert('Messages cleared from local view');
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   useEffect(() => {
     (async () => {
       // Step 1: Load WASM (PQ proofs)

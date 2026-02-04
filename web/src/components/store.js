@@ -602,3 +602,24 @@ export function markRead(channelId) {
     save();
   }
 }
+
+/**
+ * Clear all messages from local view (doesn't delete from relay)
+ * Admin function - Ctrl+Shift+K to trigger
+ */
+export function clearAllMessages() {
+  messages.value = {};
+  localStorage.removeItem('drista_messages');
+  console.log('[Store] Cleared all local messages');
+}
+
+/**
+ * Clear messages for a specific channel
+ */
+export function clearChannelMessages(channelId) {
+  const current = { ...messages.value };
+  delete current[channelId];
+  messages.value = current;
+  save();
+  console.log(`[Store] Cleared messages for channel: ${channelId}`);
+}
