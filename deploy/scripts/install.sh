@@ -5,7 +5,7 @@
 
 set -e
 
-REPO="Paraxiom/drista"
+BASE_URL="https://drista.paraxiom.org/releases"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
 # Colors
@@ -52,8 +52,8 @@ echo "Detected: $OS $ARCH"
 echo "Downloading: $ASSET"
 echo ""
 
-# Get latest release URL
-RELEASE_URL="https://github.com/$REPO/releases/latest/download/$ASSET"
+# Download URL
+RELEASE_URL="$BASE_URL/$ASSET"
 
 # Create temp directory
 TMP_DIR=$(mktemp -d)
@@ -111,6 +111,6 @@ esac
 
 echo ""
 echo -e "${CYAN}Web version: https://drista.paraxiom.org${NC}"
-echo -e "${CYAN}Source code: https://github.com/$REPO${NC}"
+echo -e "${CYAN}Source code: https://github.com/Paraxiom/drista${NC}"
 echo ""
 echo -e "${GREEN}Installation complete!${NC}"
