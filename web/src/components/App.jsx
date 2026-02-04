@@ -190,7 +190,7 @@ export function App() {
           ☰
         </button>
         <div class="lcars-bar lcars-header-bar">
-          <span class="lcars-title">DRISTA — The Observer — PQC DECENTRALIZED CHAT</span>
+          <span class="lcars-title">DRISTA — The Observer — DECENTRALIZED CHAT WITH HYBRID PQC</span>
         </div>
         <div class="lcars-button-group">
           <button class="lcars-button" onClick={() => { store.activeModal.value = 'settings'; }}>SETTINGS</button>
