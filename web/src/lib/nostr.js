@@ -556,20 +556,26 @@ export class NostrClient {
       }
     }
 
-    // Handle public text notes (KIND 1)
+    // Handle public text notes (KIND 1) - only from our relay or tagged #drista
     if (event.kind === KIND.TEXT_NOTE) {
-      this.emit('message', {
-        id: event.id,
-        from: event.pubkey,
-        to: null,
-        content: event.content,
-        timestamp: event.created_at * 1000,
-        relay,
-        encrypted: false,
-        pqEncrypted: false,
-        tags: event.tags,
-        channelId: '#drista',
-      });
+      // Filter: only accept from our relay OR tagged with #drista
+      const hasTag = event.tags?.some(t => t[0] === 't' && t[1] === 'drista');
+      const isOurRelay = relay.includes('drista.paraxiom.org');
+
+      if (hasTag || isOurRelay) {
+        this.emit('message', {
+          id: event.id,
+          from: event.pubkey,
+          to: null,
+          content: event.content,
+          timestamp: event.created_at * 1000,
+          relay,
+          encrypted: false,
+          pqEncrypted: false,
+          tags: event.tags,
+          channelId: '#drista',
+        });
+      }
     }
 
     // Handle channel messages (KIND 42)
@@ -608,11 +614,6 @@ export class NostrClient {
         kinds: [KIND.ENCRYPTED_DM, KIND.PQ_ENCRYPTED_DM],
         authors: [this.publicKey],
       },
-      // Channel messages and text notes (public forum)
-      {
-        kinds: [KIND.TEXT_NOTE, KIND.CHANNEL_MESSAGE],
-        limit: 100,
-      },
       // PQ key publications (for key discovery)
       {
         kinds: [KIND.PQ_KEY],
@@ -620,9 +621,24 @@ export class NostrClient {
       },
     ];
 
+    // Only subscribe to public notes on our own relay (drista.paraxiom.org)
+    // This prevents flooding from public relays like damus.io
     for (const relay of this.relays.values()) {
       if (relay.connected) {
-        relay.subscribe(filters, null);
+        if (relay.url.includes('drista.paraxiom.org')) {
+          // On our own relay, subscribe to channel messages too
+          relay.subscribe([
+            ...filters,
+            {
+              kinds: [KIND.TEXT_NOTE, KIND.CHANNEL_MESSAGE],
+              '#t': ['drista'], // Only messages tagged with #drista
+              limit: 50,
+            },
+          ], null);
+        } else {
+          // On public relays, only subscribe to DMs
+          relay.subscribe(filters, null);
+        }
       }
     }
   }
@@ -718,7 +734,7 @@ export class NostrClient {
     return event;
   }
 
-  async sendNote(content) {
+  async sendNote(content, channelTag = 'drista') {
     if (!this.privateKey) {
       throw new Error('Client not initialized');
     }
@@ -726,12 +742,13 @@ export class NostrClient {
     const event = createEvent(
       KIND.TEXT_NOTE,
       content,
-      [],
+      [['t', channelTag]], // Tag with channel for filtering
       this.privateKey
     );
 
+    // Only publish to our relay for channel messages
     for (const relay of this.relays.values()) {
-      if (relay.connected) {
+      if (relay.connected && relay.url.includes('drista.paraxiom.org')) {
         relay.publish(event);
       }
     }
