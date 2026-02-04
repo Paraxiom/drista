@@ -64,8 +64,9 @@ Default channels for Paraxiom collaborators:
 Click any username to start an encrypted DM. Messages are encrypted with **ML-KEM-1024 + AES-256-GCM** — post-quantum secure encryption that protects against both classical and quantum computers.
 
 - **PQC badge** — Messages show a cyan "PQC" badge when using post-quantum encryption
-- **Automatic upgrade** — Falls back to NIP-04 for contacts without PQ keys
+- **Full PQC required** — Recipients must have published their PQ key (shown as "AWAITING PQ KEY" if not)
 - **Key discovery** — PQ public keys are automatically published and discovered via Nostr
+- **Dual signatures** — Events are signed with both SLH-DSA (post-quantum) and Schnorr (relay compatibility)
 
 ---
 
@@ -196,15 +197,18 @@ This is a massive undertaking. In the meantime, Drista's approach is:
 - **Metadata minimization**: Nostr's design doesn't require account registration
 - **Relay diversity**: Messages go through multiple independent relays
 
-### Encryption Stack
+### Encryption Stack (Full PQC - v0.1.0)
 
-| Layer | Algorithm | Protection Against |
-|-------|-----------|-------------------|
-| DM Encryption | ML-KEM-1024 + AES-256-GCM | Quantum computers, MITM |
-| Key Derivation | HKDF-SHA256 | Key reuse attacks |
-| Identity | STARK proofs | Impersonation |
-| Storage | IPFS + content hashing | Data loss, tampering |
-| Fallback | NIP-04 (ECDH + AES-256) | Legacy compatibility |
+| Layer | Algorithm | Standard | Protection Against |
+|-------|-----------|----------|-------------------|
+| DM Encryption | ML-KEM-1024 + AES-256-GCM | FIPS 203 | Quantum computers, MITM |
+| Signatures | SLH-DSA + Schnorr | FIPS 205 + BIP-340 | Forgery (PQ + relay compat) |
+| Message Auth | STARK Proofs | Winterfell ZK | Impersonation |
+| Key Derivation | HKDF-SHA256 | RFC 5869 | Key reuse attacks |
+| Storage | IPFS + content hashing | - | Data loss, tampering |
+| Transport | TLS 1.3 (QSSL ready) | RFC 8446 | Eavesdropping |
+
+**Note:** No classical fallback (NIP-04 removed). Recipients must have a PQ key published.
 
 Full security analysis: [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md)
 

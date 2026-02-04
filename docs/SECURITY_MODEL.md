@@ -1,35 +1,91 @@
 # Security Model
 
-Threat model and security analysis for the QuantumHarmony bridge transport.
+Threat model and security analysis for Drista - Post-Quantum Secure Messaging.
+
+## Full PQC Architecture (v0.1.0)
+
+Drista implements end-to-end post-quantum cryptography at every layer:
+
+| Layer | Algorithm | Standard | Security Level |
+|-------|-----------|----------|----------------|
+| **DM Encryption** | ML-KEM-1024 + AES-256-GCM | FIPS 203 | NIST Level 5 |
+| **Signatures** | SLH-DSA-SHAKE-128s + Schnorr | FIPS 205 + BIP-340 | NIST Level 1 + Classical |
+| **Message Auth** | STARK Proofs | Winterfell ZK | Post-Quantum (hash-based) |
+| **Key Exchange** | ML-KEM-1024 | FIPS 203 | NIST Level 5 |
+| **Transport** | TLS 1.3 (QSSL client ready) | RFC 8446 | Classical (PQ pending) |
+
+### Why Dual Signatures?
+
+Events include both SLH-DSA (post-quantum) and Schnorr (classical) signatures:
+
+- **Schnorr (secp256k1)**: Required for Nostr relay compatibility. Standard relays only accept NIP-01 events with Schnorr signatures.
+- **SLH-DSA (FIPS 205)**: Post-quantum signature stored in event metadata. Drista clients verify this signature for quantum resistance.
+
+This hybrid approach ensures:
+1. Interoperability with existing Nostr infrastructure
+2. Post-quantum security for Drista-to-Drista communication
+3. Forward compatibility as relays adopt PQ signatures
 
 ## Defense in Depth
 
 Security is layered — compromise of any single layer does not break confidentiality:
 
-| Layer | QSSH Path (native) | TLS Path (browser) |
-|-------|--------------------|--------------------|
-| Transport | Falcon-512 + AES-256-GCM | TLS 1.3 (classical) |
-| Application | NIP-04 ECDH + AES-CBC | NIP-04 ECDH + AES-CBC |
-| Identity | STARK proofs (Winterfell ZK) | STARK proofs (Winterfell ZK) |
-| Persistence | On-chain (Mesh Forum pallet) | On-chain (Mesh Forum pallet) |
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     APPLICATION LAYER                        │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ DM Content: ML-KEM-1024 + AES-256-GCM               │    │
+│  │ - Recipient's ML-KEM public key used for KEM        │    │
+│  │ - Shared secret derived via HKDF                    │    │
+│  │ - Message encrypted with AES-256-GCM                │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                              │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ Authentication: STARK Proofs + SLH-DSA              │    │
+│  │ - STARK proof embedded in message                   │    │
+│  │ - SLH-DSA signature on event ID                     │    │
+│  │ - Schnorr signature for relay compatibility         │    │
+│  └─────────────────────────────────────────────────────┘    │
+├─────────────────────────────────────────────────────────────┤
+│                     TRANSPORT LAYER                          │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ Current: TLS 1.3 WebSocket                          │    │
+│  │ Future:  QSSL (ML-KEM-768 + SPHINCS+)               │    │
+│  └─────────────────────────────────────────────────────┘    │
+├─────────────────────────────────────────────────────────────┤
+│                     PERSISTENCE LAYER                        │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ Nostr Relays: Distributed storage                   │    │
+│  │ IPFS: Content-addressed message storage             │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Layer Details
+## Cryptographic Algorithms
 
-**Transport (outer envelope):**
-- QSSH path: Falcon-512 lattice-based signatures for authentication, AES-256-GCM for symmetric encryption. Resistant to quantum attacks (NIST PQC Round 3 finalist).
-- TLS path: TLS 1.3 with classical cryptography. Vulnerable to future quantum computers but protects against current classical adversaries.
+### ML-KEM-1024 (FIPS 203)
+- **Purpose**: Key encapsulation for DM encryption
+- **Security**: NIST Level 5 (256-bit classical / 128-bit quantum)
+- **Key sizes**: Public key 1568 bytes, ciphertext 1568 bytes
+- **Implementation**: `ml-kem` crate (pure Rust, WASM-compatible)
 
-**Application (message content):**
-- NIP-04: ECDH shared secret (secp256k1) + AES-256-CBC. E2E encrypted — neither the bridge nor the transport layer can read message content.
-- This layer is independent of transport. Even over plain `ws://`, message content is encrypted.
+### SLH-DSA-SHAKE-128s (FIPS 205)
+- **Purpose**: Post-quantum digital signatures
+- **Security**: NIST Level 1 (128-bit classical / 64-bit quantum)
+- **Signature size**: ~7,856 bytes
+- **Public key**: 32 bytes
+- **Implementation**: `fips205` crate (pure Rust, WASM-compatible)
 
-**Identity (proof of authorship):**
-- STARK proofs (Winterfell ZK library): Zero-knowledge proof that the sender knows the private key, without revealing it. Verified by recipients.
-- Nostr Schnorr signatures (secp256k1): Standard NIP-01 event signatures.
+### STARK Proofs (Winterfell)
+- **Purpose**: Zero-knowledge message authentication
+- **Security**: Post-quantum (hash-based)
+- **Proof size**: Variable (~10-50 KB)
+- **Implementation**: `winterfell` crate (pure Rust, WASM-compatible)
 
-**Persistence (tamper resistance):**
-- Events posted to Substrate Mesh Forum pallet, committed to chain via consensus.
-- Once on-chain, events cannot be modified or deleted without consensus.
+### AES-256-GCM
+- **Purpose**: Symmetric encryption of message content
+- **Security**: 256-bit (128-bit quantum due to Grover's algorithm)
+- **Implementation**: `aes-gcm` crate
 
 ## Threat Model
 
@@ -37,88 +93,105 @@ Security is layered — compromise of any single layer does not break confidenti
 
 | Adversary | Can do | Cannot do |
 |-----------|--------|-----------|
-| Network observer | See encrypted traffic, connection timing, IP addresses | Read message content (NIP-04 encrypted) |
-| Quantum adversary (future) | Break TLS 1.3, break secp256k1 ECDH | Break Falcon-512 (lattice-based), break AES-256 |
-| Compromised bridge | See NIP-04 ciphertext, connection metadata | Decrypt messages (no access to private keys) |
-| Compromised validator | Modify chain state (with consensus) | Forge NIP-01 signatures or STARK proofs |
+| Network observer | See encrypted traffic, connection timing, IP addresses | Read message content (ML-KEM + AES-256-GCM encrypted) |
+| Quantum adversary | Break TLS 1.3, break Schnorr signatures | Break ML-KEM-1024, break SLH-DSA, break AES-256 |
+| Compromised relay | See encrypted ciphertext, connection metadata | Decrypt messages (no access to ML-KEM private keys) |
+| Malicious sender | Send spam, impersonate (without keys) | Forge STARK proofs or SLH-DSA signatures |
 
 ### Attack Scenarios
 
-**1. Man-in-the-Middle (MITM)**
-
-| Path | Protection |
-|------|-----------|
-| QSSH | Falcon-512 host key verification (TOFU model). Client verifies server's public key on first connection. |
-| TLS | Certificate verification (self-signed initially, Let's Encrypt for production). |
-| Both | NIP-04 E2E encryption — even a successful MITM cannot read content. |
-
-**2. Harvest Now, Decrypt Later (HNDL)**
+**1. Harvest Now, Decrypt Later (HNDL)**
 
 A quantum adversary records encrypted traffic today and decrypts it when quantum computers are available.
 
-| Path | Risk |
-|------|------|
-| QSSH | **Low.** Falcon-512 is post-quantum. Recorded traffic cannot be decrypted by quantum computers. |
-| TLS | **Transport exposed.** TLS 1.3 session keys could be recovered. However, NIP-04 content remains protected by AES-256 (quantum-resistant for symmetric key sizes). The ECDH key exchange in NIP-04 is vulnerable, meaning a quantum adversary could derive the shared secret from public keys on-chain. |
+| Layer | Protection |
+|-------|------------|
+| DM Encryption | **Protected.** ML-KEM-1024 is quantum-resistant. |
+| Signatures | **Protected.** SLH-DSA is quantum-resistant. |
+| Transport | **Exposed (current).** TLS 1.3 uses classical key exchange. |
 
-**Mitigation:** Use QSSH path for sensitive communications. The TLS fallback is acceptable for browsers where QSSH is not yet available, given that:
-- NIP-04 adds a second encryption layer
-- STARK proofs provide quantum-resistant identity verification
-- The practical timeline for breaking secp256k1 with quantum computers is estimated at 10+ years
+**Mitigation**: QSSL transport (client ready, server pending) will provide full quantum-resistant transport.
 
-**3. Compromised Bridge Node**
+**2. Man-in-the-Middle (MITM)**
 
-If an attacker gains access to a bridge process:
-- They see NIP-04 ciphertext (cannot decrypt without user private keys)
-- They see connection metadata (which pubkeys are talking)
-- They can drop or delay messages (availability attack)
-- They cannot forge events (Schnorr signature verification)
-- They cannot modify on-chain history (consensus required)
+| Layer | Protection |
+|-------|------------|
+| Transport | TLS certificate verification |
+| Application | ML-KEM encapsulation to recipient's public key - only they can decrypt |
+| Identity | STARK proofs + SLH-DSA verify sender authenticity |
 
-**4. Rogue Validator**
+**3. Key Compromise**
 
-A validator controlling their bridge + Substrate node:
-- Can censor messages from their node (not post to chain)
-- Cannot forge messages from other users (signature verification)
-- Cannot unilaterally rewrite chain history (2/3 consensus threshold)
-- Other validators will still relay messages from other paths
+If a user's ML-KEM private key is compromised:
+- Past messages remain secure (no forward secrecy in current design)
+- Future messages can be decrypted
+- **Mitigation**: Key rotation via PQ key publication (Kind 30078 events)
 
-## Comparison: Before vs After
+## QSSL Transport (Phase 3 - Client Ready)
 
-| Property | Before (plain ws://) | After (QSSH + TLS) |
-|----------|---------------------|---------------------|
-| Transport encryption | None | Falcon-512 (PQ) or TLS 1.3 |
-| Exposed ports | 7777 (public) | 4242 (QSSH) + 7778 (TLS) |
-| Bridge binding | 0.0.0.0 | 127.0.0.1 |
-| MITM resistance | NIP-04 only | Transport auth + NIP-04 |
-| Quantum resistance | NIP-04 AES only | Full (QSSH path) |
-| Metadata protection | None | Encrypted tunnel |
+QSSL provides post-quantum encrypted WebSocket transport:
 
-### What Improves
+| Component | Algorithm |
+|-----------|-----------|
+| Key Exchange | ML-KEM-768 |
+| Authentication | SPHINCS+-SHA2-128f |
+| Symmetric | AES-256-GCM |
 
-- **Transport confidentiality:** Traffic is encrypted in transit (previously plaintext WebSocket).
-- **Bridge isolation:** Bridge only accepts local connections, reducing attack surface.
-- **Quantum resistance (QSSH path):** Falcon-512 protects against future quantum adversaries.
-- **Metadata protection:** Connection metadata is hidden inside the encrypted tunnel.
+**Current Status**:
+- Client WASM module ready
+- Identity generation and persistence working
+- Server-side endpoint pending deployment
 
-### What Stays the Same
+**When QSSL is active**:
+- Full quantum resistance at transport layer
+- Connection metadata protected
+- IP address privacy (encrypted tunnel)
 
-- **Message confidentiality:** NIP-04 E2E encryption was already in place.
-- **Identity verification:** STARK proofs and Schnorr signatures unchanged.
-- **Chain persistence:** Mesh Forum pallet storage unchanged.
+## Key Management
 
-### What the TLS Fallback Leaks
+### Identity Keys
 
-When using the browser TLS path instead of QSSH:
-- **Connection timing:** When connections are made/dropped.
-- **IP addresses:** Client IP visible to nginx/validator.
-- **Traffic volume:** Amount of data exchanged (encrypted, but volume visible).
-- **NOT leaked:** Message content (NIP-04), sender/recipient identity within encrypted content.
+| Key Type | Storage | Purpose |
+|----------|---------|---------|
+| Nostr (secp256k1) | localStorage | Relay authentication, DM addressing |
+| STARK | localStorage | Zero-knowledge message proofs |
+| ML-KEM-1024 | localStorage | DM encryption key exchange |
+| SLH-DSA | localStorage | Post-quantum event signatures |
+| QSSL | localStorage | Transport encryption (when enabled) |
 
-## Future Improvements
+### Key Publication
 
-1. **Full PQ browser path:** Falcon-512 WASM bindings would allow browsers to connect directly to qsshd, eliminating TLS fallback.
-2. **NIP-04 PQ upgrade:** Replace secp256k1 ECDH with a PQ KEM (e.g., Kyber) for the application-layer encryption.
-3. **Let's Encrypt:** Replace self-signed certs with proper CA-signed certificates.
-4. **Host key pinning:** Distribute qsshd host key fingerprints out-of-band for TOFU verification.
-5. **Tor integration:** Optional onion routing for IP address privacy.
+- ML-KEM public keys are published as Kind 30078 events (NIP-33 replaceable)
+- Tag format: `["ek", "<base64-ml-kem-public-key>"]`, `["d", "ml-kem-1024"]`
+- Other users discover keys by subscribing to Kind 30078 with `#d: ["ml-kem-1024"]`
+
+## Comparison with Classical Nostr
+
+| Property | Classical Nostr (NIP-04) | Drista (Full PQC) |
+|----------|-------------------------|-------------------|
+| DM Encryption | ECDH (secp256k1) + AES-256-CBC | ML-KEM-1024 + AES-256-GCM |
+| Signatures | Schnorr only | SLH-DSA + Schnorr |
+| Message Auth | Schnorr signature | STARK proof + SLH-DSA |
+| Quantum Resistance | None | Full (except transport) |
+| Key Exchange | ECDH (vulnerable) | ML-KEM-1024 (resistant) |
+
+## Security Considerations
+
+### What is Protected
+
+- **Message content**: End-to-end encrypted with ML-KEM-1024 + AES-256-GCM
+- **Sender authenticity**: Verified via STARK proofs and SLH-DSA signatures
+- **Key exchange**: Quantum-resistant via ML-KEM-1024
+
+### What is Exposed (Current)
+
+- **Transport metadata**: Connection timing, IP addresses (TLS protects content)
+- **Relay visibility**: Relays see encrypted ciphertext and event metadata
+- **Public keys**: ML-KEM public keys are published for discovery
+
+### Future Improvements
+
+1. **QSSL Server Deployment**: Enable full PQ transport
+2. **Forward Secrecy**: Implement PQ Triple Ratchet for session key rotation
+3. **Metadata Privacy**: Onion routing or mix networks for IP privacy
+4. **Key Rotation**: Automated ML-KEM key rotation schedule
