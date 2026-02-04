@@ -300,27 +300,82 @@ node --experimental-wasm-modules tests/pq-dm-extended.test.js
 
 ### Build Desktop App
 
-Requires: Rust 1.70+, Tauri CLI 2.0
+We need help building for different platforms! If you can build on your machine, please contribute.
+
+#### Prerequisites (All Platforms)
 
 ```bash
-# Build web frontend first
-cd web && npm install && npm run build
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# Build desktop app
-cd ../desktop/src-tauri
-cargo install tauri-cli  # if not installed
-cargo tauri build
+# Install Tauri CLI
+cargo install tauri-cli
 
-# Output locations:
-# macOS: target/release/bundle/macos/Drista.app
-# Windows: target/release/bundle/msi/
-# Linux: target/release/bundle/deb/ or appimage/
+# Clone and prep
+git clone https://github.com/Paraxiom/drista.git
+cd drista/web && npm install && npm run build
 ```
 
-Features:
-- Post-quantum encryption (same as web)
-- BLE mesh networking (offline P2P)
-- Native performance
+#### macOS (Apple Silicon)
+
+```bash
+# No extra deps needed
+cd desktop/src-tauri
+cargo tauri build
+
+# Output: target/release/bundle/macos/Drista.app
+# Package: zip -r Drista-macos-arm64.zip target/release/bundle/macos/Drista.app
+```
+
+#### macOS (Intel)
+
+```bash
+# Add Intel target
+rustup target add x86_64-apple-darwin
+
+cd desktop/src-tauri
+cargo tauri build --target x86_64-apple-darwin
+
+# Output: target/x86_64-apple-darwin/release/bundle/macos/Drista.app
+# Package: zip -r Drista-macos-x64.zip target/x86_64-apple-darwin/release/bundle/macos/Drista.app
+```
+
+#### Linux (Ubuntu/Debian)
+
+```bash
+# Install dependencies
+sudo apt update
+sudo apt install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+cd desktop/src-tauri
+cargo tauri build
+
+# Output: target/release/bundle/appimage/Drista_*.AppImage
+# Package: mv target/release/bundle/appimage/*.AppImage Drista-linux-x64.AppImage
+```
+
+#### Windows
+
+```powershell
+# Install Visual Studio Build Tools with C++ workload
+# https://visualstudio.microsoft.com/visual-cpp-build-tools/
+
+cd desktop\src-tauri
+cargo tauri build
+
+# Output: target\release\bundle\msi\Drista_*.msi
+# Package: copy target\release\bundle\msi\*.msi Drista-windows-x64.msi
+```
+
+#### Contributing Builds
+
+Built for your platform? Help us out:
+
+1. Open an issue with your platform details
+2. Attach the packaged binary (zip/AppImage/msi)
+3. We'll verify and add it to https://drista.paraxiom.org/downloads
+
+Or email directly: sylvain@paraxiom.org
 
 ### Run Your Own Validator
 
