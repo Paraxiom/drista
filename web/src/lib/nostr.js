@@ -653,14 +653,14 @@ export class NostrClient {
     }
 
     const filters = [
-      // DMs to us (both NIP-04 and PQ) - subscribe to ALL our pubkeys
+      // DMs to us - PQ-encrypted only (FULL PQC: no classical NIP-04)
       {
-        kinds: [KIND.ENCRYPTED_DM, KIND.PQ_ENCRYPTED_DM],
+        kinds: [KIND.PQ_ENCRYPTED_DM],
         '#p': dmPubkeys,
       },
-      // Our sent DMs (both NIP-04 and PQ)
+      // Our sent DMs - PQ-encrypted only
       {
-        kinds: [KIND.ENCRYPTED_DM, KIND.PQ_ENCRYPTED_DM],
+        kinds: [KIND.PQ_ENCRYPTED_DM],
         authors: [this.publicKey],
       },
       // PQ key publications (for key discovery)

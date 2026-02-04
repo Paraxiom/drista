@@ -379,37 +379,29 @@ export async function sendNostrDM(recipientPubKey, messageText, starkSig) {
       tags.push(['stark-proof', starkSig.proof, starkSig.pubkey]);
     }
 
-    let event;
-
-    // Check if recipient has PQ key - use PQC encryption if available
-    if (pqDm.isPqDmReady() && pqDm.hasPqKey(recipientPubKey)) {
-      // PQC path: ML-KEM-768 + AES-256-GCM
-      const { content, senderEk } = await pqDm.encryptPqDm(recipientPubKey, messageText);
-
-      // Add our EK to tags for key discovery
-      tags.push(['pq', senderEk]);
-
-      event = createEvent(
-        KIND.PQ_ENCRYPTED_DM,
-        content,
-        tags,
-        nostr.privateKey
-      );
-
-      console.log('[Store] Sending PQC-encrypted DM:', event.id);
-    } else {
-      // Fallback to NIP-04 (legacy secp256k1)
-      const ciphertext = await encryptDM(messageText, recipientPubKey, nostr.privateKey);
-
-      event = createEvent(
-        KIND.ENCRYPTED_DM,
-        ciphertext,
-        tags,
-        nostr.privateKey
-      );
-
-      console.log('[Store] Sending NIP-04 DM (legacy):', event.id);
+    // FULL PQC: Require PQ key exchange - no classical fallback
+    if (!pqDm.isPqDmReady()) {
+      throw new Error('PQ-DM not initialized. Please refresh the page.');
     }
+
+    if (!pqDm.hasPqKey(recipientPubKey)) {
+      throw new Error(`Recipient doesn't have a PQ key. They must publish their key first by opening Drista.`);
+    }
+
+    // PQC path: ML-KEM-1024 + AES-256-GCM (no classical fallback)
+    const { content, senderEk } = await pqDm.encryptPqDm(recipientPubKey, messageText);
+
+    // Add our EK to tags for key discovery
+    tags.push(['pq', senderEk]);
+
+    const event = createEvent(
+      KIND.PQ_ENCRYPTED_DM,
+      content,
+      tags,
+      nostr.privateKey
+    );
+
+    console.log('[Store] Sending PQC-encrypted DM (ML-KEM-1024):', event.id);
 
     for (const relay of nostr.relays.values()) {
       if (relay.connected) {

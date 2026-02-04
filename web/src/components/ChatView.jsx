@@ -67,10 +67,12 @@ export function ChatView({ identity, starkIdentity, wasmLoaded }) {
   // Channel header info
   let chatName = 'Select a channel';
   let chatStatus = '';
+  let hasPqKeyStatus = true; // For DM channels, check if recipient has PQ key
   if (channel) {
     chatName = channel.name;
     if (channel.channelType === 'direct') {
-      chatStatus = channel.encrypted ? 'ENCRYPTED DM' : 'DIRECT MESSAGE';
+      hasPqKeyStatus = channel.nostrPubkey ? store.hasPqKey(channel.nostrPubkey) : false;
+      chatStatus = hasPqKeyStatus ? 'PQC ENCRYPTED DM' : 'AWAITING PQ KEY';
     } else if (channel.channelType === 'forum') {
       chatStatus = 'PUBLIC CHANNEL';
     } else {
@@ -112,9 +114,9 @@ export function ChatView({ identity, starkIdentity, wasmLoaded }) {
               <h3>Security Features</h3>
               <ul>
                 <li><strong>STARK Proofs</strong> — Messages are signed with zero-knowledge proofs</li>
-                <li><strong>E2E Encryption</strong> — DMs use NIP-04 encryption (ECDH + AES-256)</li>
-                <li><strong>Post-Quantum Ready</strong> — ML-KEM-1024 + Falcon-512 when WASM loads</li>
-                <li><strong>Decentralized</strong> — Stored on QuantumHarmony validator nodes</li>
+                <li><strong>Full PQC Encryption</strong> — DMs use ML-KEM-1024 + AES-256-GCM (quantum-resistant)</li>
+                <li><strong>No Classical Fallback</strong> — Recipients must have PQ key to receive DMs</li>
+                <li><strong>Decentralized</strong> — Stored on Nostr relays, no central server</li>
               </ul>
             </div>
 
@@ -139,6 +141,13 @@ export function ChatView({ identity, starkIdentity, wasmLoaded }) {
         ))}
       </div>
 
+      {/* PQ Key warning for DM channels */}
+      {channel?.channelType === 'direct' && !hasPqKeyStatus && (
+        <div class="lcars-chat-warning">
+          ⚠️ Recipient hasn't published their PQ key yet. They need to open Drista to enable encrypted messaging.
+        </div>
+      )}
+
       {/* Send status feedback */}
       {sendStatus === 'error' && lastError && (
         <div class="lcars-chat-error">
@@ -155,13 +164,13 @@ export function ChatView({ identity, starkIdentity, wasmLoaded }) {
         <input
           type="text"
           ref={inputRef}
-          placeholder="Type a message..."
-          disabled={!channel || sendStatus === 'sending'}
+          placeholder={channel?.channelType === 'direct' && !hasPqKeyStatus ? "Waiting for recipient's PQ key..." : "Type a message..."}
+          disabled={!channel || sendStatus === 'sending' || (channel?.channelType === 'direct' && !hasPqKeyStatus)}
           onKeyPress={onKeyPress}
         />
         <button
           class="lcars-button"
-          disabled={!channel || sendStatus === 'sending'}
+          disabled={!channel || sendStatus === 'sending' || (channel?.channelType === 'direct' && !hasPqKeyStatus)}
           onClick={sendMessage}
         >
           {sendStatus === 'sending' ? 'SENDING...' : 'SEND'}

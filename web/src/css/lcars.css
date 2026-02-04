@@ -432,6 +432,15 @@
   animation: pulse 1s infinite;
 }
 
+.lcars-chat-warning {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(255, 180, 80, 0.15);
+  border-left: 3px solid #ffb050;
+  color: #ffc080;
+  font-size: 13px;
+  animation: fadeIn 0.2s ease-out;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-5px); }
   to { opacity: 1; transform: translateY(0); }
