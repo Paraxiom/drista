@@ -1,0 +1,27 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+target/
+web/node_modules/
+web/dist/
+
+# Desktop app (not needed for web Docker)
+desktop/
+
+# Rust crates (WASM already built)
+crates/
+
+# Docs
+*.md
+docs/
+LICENSE*
+
+# IDE
+.vscode/
+.idea/
+
+# Local config
+.env*
+*.local

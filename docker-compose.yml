@@ -1,0 +1,24 @@
+# Drista - Self-hosted post-quantum chat
+#
+# Quick start:
+#   docker compose up -d
+#   Open http://localhost:3000
+#
+# With custom relays:
+#   RELAYS=wss://relay.example.com docker compose up -d
+
+services:
+  drista:
+    build: .
+    image: paraxiom/drista:latest
+    ports:
+      - "3000:3000"
+    environment:
+      # Default relays (can override)
+      - RELAYS=${RELAYS:-wss://drista.paraxiom.org/ws}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

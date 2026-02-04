@@ -26,6 +26,19 @@ curl -fsSL https://drista.paraxiom.org/install.sh | sh
 brew install paraxiom/tap/drista
 ```
 
+### Docker (Self-Hosted)
+
+```bash
+# Quick start
+docker run -p 3000:3000 paraxiom/drista
+
+# Or with docker-compose
+git clone https://github.com/Paraxiom/drista.git
+cd drista && docker compose up -d
+
+# Open http://localhost:3000
+```
+
 ### From Source
 
 ```bash
