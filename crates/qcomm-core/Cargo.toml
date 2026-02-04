@@ -38,8 +38,8 @@ qrng = []
 # Quantum Key Distribution integration
 qkd = []
 
-# WASM-compatible crypto (pure Rust ML-KEM)
-wasm-crypto = ["dep:ml-kem", "dep:hybrid-array"]
+# WASM-compatible crypto (pure Rust ML-KEM + SLH-DSA)
+wasm-crypto = ["dep:ml-kem", "dep:hybrid-array", "dep:fips205"]
 
 [dependencies]
 # Async runtime (native only)
@@ -61,6 +61,7 @@ pqcrypto-sphincsplus = { version = "0.7", optional = true }
 # Post-quantum cryptography (WASM-compatible - pure Rust)
 ml-kem = { version = "0.2", optional = true }
 hybrid-array = { version = "0.2", optional = true }
+fips205 = { version = "0.4", optional = true, default-features = false, features = ["slh_dsa_shake_128s", "default-rng"] }  # SLH-DSA (SPHINCS+) FIPS 205
 
 # Classical crypto
 sha2 = "0.10"

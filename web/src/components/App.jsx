@@ -16,6 +16,7 @@ export function App() {
   const [identity, setIdentity] = useState(null);
   const [starkIdentity, setStarkIdentity] = useState(null);
   const [qsslIdentity, setQsslIdentity] = useState(null);
+  const [slhDsaIdentity, setSlhDsaIdentity] = useState(null);
   const [wasmLoaded, setWasmLoaded] = useState(false);
   const [statusText, setStatusText] = useState('INITIALIZING');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -123,7 +124,24 @@ export function App() {
             await store.publishPqKey();
             console.log('[App] PQ-DM initialized and key published');
           } catch (error) {
-            console.warn('[App] PQ-DM init failed, falling back to NIP-04:', error);
+            console.warn('[App] PQ-DM init failed:', error);
+          }
+        }
+
+        // Step 5: Initialize SLH-DSA (post-quantum signatures)
+        if (wasm) {
+          try {
+            setStatusText('SLH-DSA INIT');
+            const slhDsa = store.initSlhDsa();
+            if (slhDsa) {
+              setSlhDsaIdentity({
+                publicKeyBase64: slhDsa.publicKeyBase64,
+                fingerprint: slhDsa.publicKeyBase64.slice(0, 16),
+              });
+              console.log('[App] SLH-DSA initialized:', slhDsa.publicKeyBase64.slice(0, 16) + '...');
+            }
+          } catch (error) {
+            console.warn('[App] SLH-DSA init failed:', error);
           }
         }
 
@@ -150,6 +168,7 @@ export function App() {
     'STARK INIT': 'var(--lcars-mauve)',
     'NOSTR TRANSPORT': 'var(--lcars-peach)',
     'PQ-DM INIT': 'linear-gradient(135deg, #7ecfdf 0%, #5ab8c8 100%)',
+    'SLH-DSA INIT': 'linear-gradient(135deg, #9b6dff 0%, #7b4ddf 100%)',
     'ERROR': 'var(--lcars-rose)',
   };
 
@@ -208,7 +227,7 @@ export function App() {
       <main class="lcars-main">
         <ChannelList mobileOpen={mobileMenuOpen} onChannelSelect={handleChannelSelect} />
         <ChatView identity={identity} starkIdentity={starkIdentity} wasmLoaded={wasmLoaded} />
-        <InfoPanel identity={identity} starkIdentity={starkIdentity} wasmLoaded={wasmLoaded} qsslIdentity={qsslIdentity} />
+        <InfoPanel identity={identity} starkIdentity={starkIdentity} wasmLoaded={wasmLoaded} qsslIdentity={qsslIdentity} slhDsaIdentity={slhDsaIdentity} />
       </main>
 
       {/* Footer */}

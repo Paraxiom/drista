@@ -19,7 +19,7 @@ serde-wasm-bindgen = "0.6"
 console_error_panic_hook = "0.1"
 base64.workspace = true
 hex.workspace = true
-getrandom.workspace = true
+getrandom = { workspace = true, features = ["js"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"

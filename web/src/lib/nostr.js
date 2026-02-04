@@ -11,6 +11,8 @@ import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex as nobleToHex, hexToBytes as nobleFromHex } from '@noble/hashes/utils';
 import * as pqCrypto from './pq-crypto.js';
 import * as pqDm from './pq-dm.js';
+import * as slhDsa from './slh-dsa-identity.js';
+import { QsslRelayConnection, isQsslAvailable, initQssl } from './qssl-transport.js';
 
 // Nostr event kinds
 export const KIND = {
@@ -143,21 +145,43 @@ function signEvent(event, privateKeyHex) {
 
 /**
  * Create a signed Nostr event
+ * Includes both schnorr (for relay compatibility) and SLH-DSA (post-quantum) signatures
  */
-export function createEvent(kind, content, tags, privateKeyHex) {
+export function createEvent(kind, content, tags, privateKeyHex, addPqSignature = true) {
   const pubkey = getPublicKeyHex(privateKeyHex);
   const created_at = Math.floor(Date.now() / 1000);
+
+  // Start with base tags
+  const eventTags = [...tags];
 
   const event = {
     kind,
     content,
-    tags,
+    tags: eventTags,
     pubkey,
     created_at,
   };
 
   event.id = getEventId(event);
   event.sig = signEvent(event, privateKeyHex);
+
+  // Add PQ signature if available (Phase 2: Full PQC)
+  if (addPqSignature && slhDsa.isSlhDsaReady()) {
+    try {
+      // Sign the event ID with SLH-DSA
+      const pqSignature = slhDsa.signWithSlhDsa(event.id);
+      const pqPublicKey = slhDsa.getSlhDsaPublicKey();
+
+      // Add PQ signature and public key as tags
+      // Note: These are added AFTER the event ID is computed so they don't affect it
+      event.pqsig = pqSignature;
+      event.pqpk = pqPublicKey;
+
+      console.log('[Nostr] Added SLH-DSA signature to event');
+    } catch (error) {
+      console.warn('[Nostr] Failed to add PQ signature:', error);
+    }
+  }
 
   return event;
 }
@@ -452,17 +476,59 @@ export class NostrClient {
   }
 
   async connectRelays(urls = DEFAULT_RELAYS) {
+    // Try to initialize QSSL for PQ transport
+    let qsslAvailable = false;
+    try {
+      await initQssl();
+      qsslAvailable = isQsslAvailable();
+      if (qsslAvailable) {
+        console.log('[Nostr] QSSL available for PQ-secured transport');
+      }
+    } catch (error) {
+      console.warn('[Nostr] QSSL not available:', error.message);
+    }
+
     const connections = urls.map(async (url) => {
       if (this.relays.has(url)) return;
 
-      const relay = new RelayConnection(url);
+      // Use QSSL for Drista relay if available
+      const isDristaRelay = url.includes('drista.paraxiom.org');
+      let relay;
+
+      if (isDristaRelay && qsslAvailable) {
+        try {
+          relay = new QsslRelayConnection(url);
+          relay.on('message', (data) => {
+            // QSSL relay emits 'message' instead of 'event'
+            this.handleEvent(data);
+          });
+          relay.on('connect', () => {
+            console.log('[Nostr] QSSL connection established to', url);
+            this.emit('connect', { url, qssl: true });
+          });
+          relay.on('disconnect', () => {
+            this.emit('disconnect', { url });
+          });
+
+          await relay.connect();
+          this.relays.set(url, relay);
+          console.log('[Nostr] Connected to', url, 'via QSSL (PQ-secured)');
+          return;
+        } catch (qsslError) {
+          console.warn('[Nostr] QSSL connection failed, falling back to standard WS:', qsslError.message);
+          // Fall through to standard connection
+        }
+      }
+
+      // Standard WebSocket connection
+      relay = new RelayConnection(url);
 
       relay.on('event', (data) => {
         this.handleEvent(data);
       });
 
       relay.on('connect', () => {
-        this.emit('connect', { url });
+        this.emit('connect', { url, qssl: false });
       });
 
       relay.on('disconnect', () => {
@@ -500,7 +566,22 @@ export class NostrClient {
       console.log('[Nostr] Received DM event! Kind:', event.kind, 'from:', event.pubkey.slice(0, 12), 'subId:', subId);
     }
 
-    this.emit('event', { subId, event, relay });
+    // Verify PQ signature if present (Phase 2: Full PQC)
+    let pqVerified = false;
+    if (event.pqsig && event.pqpk) {
+      try {
+        pqVerified = slhDsa.verifySlhDsaSignature(event.pqpk, event.id, event.pqsig);
+        if (pqVerified) {
+          console.log('[Nostr] PQ signature verified for event:', event.id.slice(0, 16));
+        } else {
+          console.warn('[Nostr] PQ signature INVALID for event:', event.id.slice(0, 16));
+        }
+      } catch (error) {
+        console.warn('[Nostr] Failed to verify PQ signature:', error);
+      }
+    }
+
+    this.emit('event', { subId, event, relay, pqVerified });
 
     // Handle PQ key publications (kind 30078)
     if (event.kind === KIND.PQ_KEY) {

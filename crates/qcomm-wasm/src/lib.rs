@@ -326,3 +326,112 @@ pub fn pq_key_exchange_initiate(their_public_key_base64: &str) -> Result<JsValue
     serde_wasm_bindgen::to_value(&result)
         .map_err(|e| JsError::new(&e.to_string()))
 }
+
+// ============================================================================
+// SLH-DSA (SPHINCS+) - Post-Quantum Digital Signatures (FIPS 205)
+// ============================================================================
+
+use qcomm_core::crypto::slh_dsa_wasm::{SlhDsaKeyPair, verify_with_public_key};
+
+/// SLH-DSA key pair for post-quantum signatures
+/// Uses SLH-DSA-SHAKE-128s (FIPS 205) - NIST Level 1 security
+#[wasm_bindgen]
+pub struct JsSlhDsaKeyPair {
+    inner: SlhDsaKeyPair,
+}
+
+#[wasm_bindgen]
+impl JsSlhDsaKeyPair {
+    /// Generate a new SLH-DSA keypair
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Result<JsSlhDsaKeyPair, JsError> {
+        let inner = SlhDsaKeyPair::generate()
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    /// Create keypair from existing keys (base64 encoded)
+    #[wasm_bindgen(js_name = fromKeys)]
+    pub fn from_keys(private_key_base64: &str, public_key_base64: &str) -> Result<JsSlhDsaKeyPair, JsError> {
+        let sk_bytes = BASE64.decode(private_key_base64)
+            .map_err(|e| JsError::new(&format!("Invalid private key base64: {}", e)))?;
+        let pk_bytes = BASE64.decode(public_key_base64)
+            .map_err(|e| JsError::new(&format!("Invalid public key base64: {}", e)))?;
+
+        let inner = SlhDsaKeyPair::from_bytes(&sk_bytes, &pk_bytes)
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        Ok(Self { inner })
+    }
+
+    /// Get public key as base64
+    #[wasm_bindgen(getter, js_name = publicKeyBase64)]
+    pub fn public_key_base64(&self) -> String {
+        BASE64.encode(self.inner.public_key_bytes())
+    }
+
+    /// Get private key as base64 (for secure storage)
+    #[wasm_bindgen(getter, js_name = privateKeyBase64)]
+    pub fn private_key_base64(&self) -> String {
+        BASE64.encode(self.inner.private_key_bytes())
+    }
+
+    /// Sign a message, returns signature as base64
+    #[wasm_bindgen]
+    pub fn sign(&self, message: &[u8]) -> Result<String, JsError> {
+        let signature = self.inner.sign(message)
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(BASE64.encode(&signature))
+    }
+
+    /// Sign a string message, returns signature as base64
+    #[wasm_bindgen(js_name = signString)]
+    pub fn sign_string(&self, message: &str) -> Result<String, JsError> {
+        self.sign(message.as_bytes())
+    }
+
+    /// Verify a signature
+    #[wasm_bindgen]
+    pub fn verify(&self, message: &[u8], signature_base64: &str) -> Result<bool, JsError> {
+        let signature = BASE64.decode(signature_base64)
+            .map_err(|e| JsError::new(&format!("Invalid signature base64: {}", e)))?;
+
+        self.inner.verify(message, &signature)
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Verify a string message signature
+    #[wasm_bindgen(js_name = verifyString)]
+    pub fn verify_string(&self, message: &str, signature_base64: &str) -> Result<bool, JsError> {
+        self.verify(message.as_bytes(), signature_base64)
+    }
+}
+
+/// Verify an SLH-DSA signature with just the public key (no keypair needed)
+/// Useful for verifying signatures from other users
+#[wasm_bindgen(js_name = verifySlhDsaSignature)]
+pub fn verify_slh_dsa_signature(
+    public_key_base64: &str,
+    message: &[u8],
+    signature_base64: &str,
+) -> Result<bool, JsError> {
+    let pk_bytes = BASE64.decode(public_key_base64)
+        .map_err(|e| JsError::new(&format!("Invalid public key base64: {}", e)))?;
+    let sig_bytes = BASE64.decode(signature_base64)
+        .map_err(|e| JsError::new(&format!("Invalid signature base64: {}", e)))?;
+
+    verify_with_public_key(&pk_bytes, message, &sig_bytes)
+        .map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// Get SLH-DSA signature size in bytes (for UI display)
+#[wasm_bindgen(js_name = getSlhDsaSignatureSize)]
+pub fn get_slh_dsa_signature_size() -> usize {
+    qcomm_core::crypto::slh_dsa_wasm::constants::SIGNATURE_LEN
+}
+
+/// Get SLH-DSA public key size in bytes
+#[wasm_bindgen(js_name = getSlhDsaPublicKeySize)]
+pub fn get_slh_dsa_public_key_size() -> usize {
+    qcomm_core::crypto::slh_dsa_wasm::constants::PUBLIC_KEY_LEN
+}

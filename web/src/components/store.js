@@ -17,6 +17,7 @@ import {
   getIPFSStatus,
 } from '../lib/ipfs.js';
 import * as pqDm from '../lib/pq-dm.js';
+import * as slhDsa from '../lib/slh-dsa-identity.js';
 
 // ── Reactive state ──────────────────────────────────────────
 export const channels = signal([]);
@@ -24,6 +25,7 @@ export const messages = signal({});           // { channelId: Message[] }
 export const currentChannelId = signal(null); // string ID
 export const nostrStatus = signal('disconnected');
 export const connectedRelays = signal([]);
+export const qsslConnections = signal([]);  // Relays connected via QSSL
 export const activeModal = signal(null);      // null|'newDM'|'newGroup'|'settings'|'relayInfo'
 export const ipfsEnabled = signal(true);      // Use IPFS hybrid storage
 export const ipfsStatus = signal('ready');    // 'ready'|'uploading'|'error'
@@ -41,10 +43,13 @@ export const currentMessages = computed(() =>
 
 export const transportSecurity = computed(() => {
   const relays = connectedRelays.value;
+  const qssl = qsslConnections.value;
+  const hasQssl = qssl.length > 0;
   const hasLocal = relays.some(r => r.startsWith('ws://localhost'));
   const hasTls = relays.some(r => r.startsWith('wss://'));
-  if (hasLocal && !hasTls) return 'PQ-SECURED';
-  if (hasLocal && hasTls) return 'HYBRID';
+
+  if (hasQssl) return 'QSSL (PQ)';  // Post-quantum secured transport
+  if (hasLocal && !hasTls) return 'LOCAL';
   if (hasTls) return 'TLS';
   return 'NONE';
 });
@@ -54,15 +59,19 @@ let starkIdentity = null;
 const nostr = new NostrClient();
 
 // ── Nostr listeners ─────────────────────────────────────────
-nostr.on('connect', ({ url }) => {
-  console.log(`[Store] Relay connected: ${url}`);
+nostr.on('connect', ({ url, qssl }) => {
+  console.log(`[Store] Relay connected: ${url}${qssl ? ' (QSSL)' : ''}`);
   connectedRelays.value = [...nostr.getConnectedRelays()];
+  if (qssl) {
+    qsslConnections.value = [...qsslConnections.value, url];
+  }
   updateNostrStatus();
 });
 
 nostr.on('disconnect', ({ url }) => {
   console.log(`[Store] Relay disconnected: ${url}`);
   connectedRelays.value = [...nostr.getConnectedRelays()];
+  qsslConnections.value = qsslConnections.value.filter(u => u !== url);
   updateNostrStatus();
 });
 
@@ -479,6 +488,39 @@ export async function publishPqKey() {
 
 export function isPqDmReady() {
   return pqDm.isPqDmReady();
+}
+
+// ── SLH-DSA (Post-Quantum Signatures) ────────────────────────
+export function initSlhDsa() {
+  try {
+    const { publicKeyBase64, isNew } = slhDsa.initSlhDsaIdentity();
+    console.log(`[Store] SLH-DSA ${isNew ? 'generated' : 'restored'}:`, publicKeyBase64.slice(0, 16) + '...');
+    return { publicKeyBase64, isNew };
+  } catch (error) {
+    console.warn('[Store] SLH-DSA initialization failed:', error);
+    return null;
+  }
+}
+
+export function isSlhDsaReady() {
+  return slhDsa.isSlhDsaReady();
+}
+
+export function getSlhDsaPublicKey() {
+  return slhDsa.getSlhDsaPublicKey();
+}
+
+export function getSlhDsaFingerprint() {
+  return slhDsa.getSlhDsaFingerprint();
+}
+
+// ── QSSL Transport Status ────────────────────────────────────
+export function getQsslStatus() {
+  return {
+    available: qsslConnections.value.length > 0,
+    connections: qsslConnections.value,
+    count: qsslConnections.value.length,
+  };
 }
 
 export function hasPqKey(pubkey) {

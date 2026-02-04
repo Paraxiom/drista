@@ -5,9 +5,10 @@
 import { isWasmReady, getWasm } from '../lib/wasm.js';
 import * as store from './store.js';
 
-export function InfoPanel({ identity, starkIdentity, wasmLoaded, qsslIdentity }) {
+export function InfoPanel({ identity, starkIdentity, wasmLoaded, qsslIdentity, slhDsaIdentity }) {
   const relays = store.connectedRelays.value;
   const transport = store.transportSecurity.value;
+  const qsslStatus = store.getQsslStatus();
 
   // Fingerprint - prefer QSSL, fallback to STARK, then Nostr
   const fingerprint = qsslIdentity?.fingerprint || identity?.fingerprint || '-';
@@ -16,13 +17,14 @@ export function InfoPanel({ identity, starkIdentity, wasmLoaded, qsslIdentity })
   const nostrDmKey = store.getNostrPublicKey();
   const dmKeyShort = nostrDmKey ? nostrDmKey.slice(0, 16) : '-';
 
-  // Encryption type - QSSL uses full post-quantum cryptography
-  let encryption = 'NIP-04 / SECP256K1';
-  if (qsslIdentity) {
-    encryption = 'ML-KEM-768 + SPHINCS+';  // Full PQC
-  } else if (starkIdentity) {
-    encryption = 'STARK / WINTERFELL';
-  }
+  // Encryption type - Full PQC stack
+  let encryption = 'ML-KEM-1024 + AES-GCM';
+
+  // Signature type - SLH-DSA (FIPS 205) + schnorr (relay compat)
+  const signatureType = slhDsaIdentity ? 'SLH-DSA + SCHNORR' : 'SCHNORR ONLY';
+
+  // QSSL status
+  const qsslReady = qsslIdentity ? 'READY' : 'UNAVAIL';
 
   // QRNG
   let qrng = 'CSPRNG';
@@ -56,12 +58,20 @@ export function InfoPanel({ identity, starkIdentity, wasmLoaded, qsslIdentity })
           <span class="lcars-value">{encryption}</span>
         </div>
         <div class="lcars-info-item">
+          <span class="lcars-label">SIGNATURES</span>
+          <span class="lcars-value">{signatureType}</span>
+        </div>
+        <div class="lcars-info-item">
           <span class="lcars-label">QRNG</span>
           <span class="lcars-value">{qrng}</span>
         </div>
         <div class="lcars-info-item">
           <span class="lcars-label">TRANSPORT</span>
           <span class="lcars-value">{transport}</span>
+        </div>
+        <div class="lcars-info-item" title={qsslIdentity ? `QSSL fingerprint: ${qsslIdentity.fingerprint}` : 'QSSL identity not initialized'}>
+          <span class="lcars-label">QSSL</span>
+          <span class="lcars-value">{qsslStatus.available ? `${qsslStatus.count} PQ` : qsslReady}</span>
         </div>
         <div class="lcars-info-item">
           <span class="lcars-label">NODE</span>

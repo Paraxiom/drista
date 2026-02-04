@@ -29,13 +29,16 @@ export async function initQssl() {
   if (qsslModule) return qsslModule;
 
   try {
-    // Dynamic import path constructed at runtime to avoid Vite bundling issues
-    // when the module doesn't exist
-    const wasmPath = '../qssl/qssl_wasm.js';
-    const wasm = await import(/* @vite-ignore */ wasmPath);
-    await wasm.default();
+    // Import QSSL WASM module
+    const wasm = await import('../qssl/qssl_wasm.js');
+
+    // Initialize the WASM binary
+    const wasmBinary = new URL('../qssl/qssl_wasm_bg.wasm', import.meta.url);
+    await wasm.default(wasmBinary);
+
     qsslModule = wasm;
     console.log('[QSSL] WASM module initialized, version:', wasm.version());
+    console.log('[QSSL] Algorithms:', wasm.algorithm_info());
     return qsslModule;
   } catch (error) {
     console.warn('[QSSL] WASM module not available (optional):', error.message);

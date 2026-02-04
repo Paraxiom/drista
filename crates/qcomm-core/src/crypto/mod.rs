@@ -22,6 +22,8 @@ pub mod noise;
 pub mod pq_wasm;
 #[cfg(feature = "wasm-crypto")]
 pub mod ratchet_wasm;
+#[cfg(feature = "wasm-crypto")]
+pub mod slh_dsa_wasm;
 
 // Always available
 pub mod qrng;
@@ -39,6 +41,8 @@ pub use ratchet::{PqTripleRatchet, RatchetHeader};
 pub use pq_wasm::{MlKemKeyPair, MlKemPublicKey, MlKemCiphertext, SharedSecret};
 #[cfg(all(feature = "wasm-crypto", not(feature = "native-crypto")))]
 pub use ratchet_wasm::{PqTripleRatchet, RatchetHeader};
+#[cfg(feature = "wasm-crypto")]
+pub use slh_dsa_wasm::{SlhDsaKeyPair, SlhDsaError, verify_with_public_key as verify_slh_dsa};
 
 pub use aead::{encrypt, decrypt};
 pub use stark::{StarkIdentity, EventProof, StarkError, prove_event, verify_event};
