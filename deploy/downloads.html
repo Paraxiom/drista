@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download Drista — Post-Quantum Secure Chat</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #1a1a2e;
+            --primary: #00d4ff;
+            --secondary: #ff6b35;
+            --text: #e0e0e0;
+            --muted: #888;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 3rem; }
+        h1 {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+        .subtitle { color: var(--muted); font-size: 1.1rem; }
+        .badge {
+            display: inline-block;
+            background: var(--secondary);
+            color: #fff;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            margin-top: 1rem;
+        }
+        .downloads {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        .download-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .download-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(0, 212, 255, 0.15);
+        }
+        .download-card h3 { margin-bottom: 0.5rem; }
+        .download-card .icon { font-size: 3rem; margin-bottom: 1rem; }
+        .download-card .arch { color: var(--muted); font-size: 0.9rem; }
+        .download-btn {
+            display: inline-block;
+            background: var(--primary);
+            color: var(--bg);
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 1rem;
+            transition: background 0.2s;
+        }
+        .download-btn:hover { background: #00b8e0; }
+        .cli-install {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        .cli-install h3 { margin-bottom: 1rem; color: var(--primary); }
+        .cli-install code {
+            display: block;
+            background: #0d0d12;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'SF Mono', Monaco, monospace;
+            overflow-x: auto;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        .feature {
+            background: var(--surface);
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 3px solid var(--primary);
+        }
+        .feature h4 { color: var(--primary); margin-bottom: 0.5rem; }
+        .feature p { color: var(--muted); font-size: 0.9rem; }
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            color: var(--muted);
+        }
+        footer a { color: var(--primary); }
+        .web-link {
+            text-align: center;
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, var(--surface), #252540);
+            border-radius: 12px;
+        }
+        .web-link a {
+            color: var(--primary);
+            font-size: 1.2rem;
+            text-decoration: none;
+        }
+        .web-link p { color: var(--muted); margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Drista — दृष्टा</h1>
+            <p class="subtitle">Post-Quantum Secure Chat for Paraxiom Collaborators</p>
+            <span class="badge">v0.1.0 — Full PQC</span>
+        </header>
+
+        <div class="web-link">
+            <a href="/">Launch Web App →</a>
+            <p>No installation required — runs in your browser</p>
+        </div>
+
+        <h2 style="text-align: center; margin: 2rem 0;">Desktop Downloads</h2>
+
+        <div class="downloads">
+            <div class="download-card">
+                <div class="icon">🍎</div>
+                <h3>macOS</h3>
+                <p class="arch">Apple Silicon (M1/M2/M3)</p>
+                <a href="https://github.com/Paraxiom/drista/releases/latest/download/Drista-macos-arm64.zip" class="download-btn">Download</a>
+            </div>
+            <div class="download-card">
+                <div class="icon">🍎</div>
+                <h3>macOS</h3>
+                <p class="arch">Intel (x64)</p>
+                <a href="https://github.com/Paraxiom/drista/releases/latest/download/Drista-macos-x64.zip" class="download-btn">Download</a>
+            </div>
+            <div class="download-card">
+                <div class="icon">🐧</div>
+                <h3>Linux</h3>
+                <p class="arch">x64 AppImage</p>
+                <a href="https://github.com/Paraxiom/drista/releases/latest/download/Drista-linux-x64.AppImage" class="download-btn">Download</a>
+            </div>
+            <div class="download-card">
+                <div class="icon">🪟</div>
+                <h3>Windows</h3>
+                <p class="arch">x64 Installer</p>
+                <a href="https://github.com/Paraxiom/drista/releases/latest/download/Drista-windows-x64.msi" class="download-btn">Download</a>
+            </div>
+        </div>
+
+        <div class="cli-install">
+            <h3>One-Line Install (macOS/Linux)</h3>
+            <code>curl -fsSL https://drista.paraxiom.org/install.sh | sh</code>
+        </div>
+
+        <h2 style="text-align: center; margin: 2rem 0;">Security Features</h2>
+
+        <div class="features">
+            <div class="feature">
+                <h4>ML-KEM-1024</h4>
+                <p>FIPS 203 post-quantum key encapsulation</p>
+            </div>
+            <div class="feature">
+                <h4>AES-256-GCM</h4>
+                <p>Symmetric encryption for messages</p>
+            </div>
+            <div class="feature">
+                <h4>SLH-DSA</h4>
+                <p>FIPS 205 post-quantum signatures</p>
+            </div>
+            <div class="feature">
+                <h4>STARK Proofs</h4>
+                <p>Zero-knowledge identity verification</p>
+            </div>
+            <div class="feature">
+                <h4>Decentralized</h4>
+                <p>Nostr relays + IPFS storage</p>
+            </div>
+            <div class="feature">
+                <h4>No Phone Required</h4>
+                <p>Cryptographic identity only</p>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                <a href="https://github.com/Paraxiom/drista">Source Code</a> ·
+                <a href="https://github.com/Paraxiom/drista/releases">All Releases</a> ·
+                <a href="mailto:sylvain@paraxiom.org">Contact</a>
+            </p>
+            <p style="margin-top: 1rem;">MIT OR Apache-2.0 · Paraxiom Foundation</p>
+        </footer>
+    </div>
+</body>
+</html>
