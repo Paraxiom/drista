@@ -350,6 +350,10 @@ export class RelayConnection {
       switch (type) {
         case 'EVENT': {
           const [subId, event] = rest;
+          // Log DM events at the earliest point
+          if (event.kind === 4 || event.kind === 20004) {
+            console.log('[Nostr] RAW DM received! Kind:', event.kind, 'from:', event.pubkey?.slice(0, 12), 'subId:', subId);
+          }
           this.emit('event', { subId, event, relay: this.url });
 
           const sub = this.subscriptions.get(subId);
@@ -380,6 +384,12 @@ export class RelayConnection {
 
   subscribe(filters, callback) {
     const subId = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+
+    // Log what we're subscribing to
+    const dmFilter = filters.find(f => f.kinds?.includes(4));
+    if (dmFilter) {
+      console.log('[Nostr] Subscribing to DMs with filter:', JSON.stringify(dmFilter));
+    }
 
     this.subscriptions.set(subId, { filters, callback });
     this.send(['REQ', subId, ...filters]);
@@ -485,6 +495,11 @@ export class NostrClient {
   }
 
   async handleEvent({ subId, event, relay }) {
+    // Log all incoming events for debugging
+    if (event.kind === KIND.ENCRYPTED_DM || event.kind === KIND.PQ_ENCRYPTED_DM) {
+      console.log('[Nostr] Received DM event! Kind:', event.kind, 'from:', event.pubkey.slice(0, 12), 'subId:', subId);
+    }
+
     this.emit('event', { subId, event, relay });
 
     // Handle PQ key publications (kind 30078)
@@ -501,6 +516,14 @@ export class NostrClient {
     if (event.kind === KIND.PQ_ENCRYPTED_DM) {
       try {
         const senderPubKey = event.pubkey;
+        const pTag = event.tags.find(t => t[0] === 'p');
+        const recipientPubKey = pTag ? pTag[1] : null;
+
+        // Skip our own sent messages (already added locally)
+        if (senderPubKey === this.publicKey) {
+          console.log('[Nostr] Skipping own PQ DM echo:', event.id.slice(0, 16));
+          return;
+        }
 
         // Extract sender's PQ encapsulation key from tags
         const pqTag = event.tags.find(t => t[0] === 'pq');
@@ -521,7 +544,7 @@ export class NostrClient {
         this.emit('message', {
           id: event.id,
           from: senderPubKey,
-          to: this.publicKey,
+          to: recipientPubKey || this.publicKey,
           content,
           timestamp: event.created_at * 1000,
           relay,
@@ -536,14 +559,27 @@ export class NostrClient {
 
     // Handle NIP-04 encrypted DMs (legacy)
     if (event.kind === KIND.ENCRYPTED_DM) {
+      console.log('[Nostr] Processing NIP-04 DM:', event.id.slice(0, 16), 'from:', event.pubkey.slice(0, 12));
       try {
         const senderPubKey = event.pubkey;
+        const pTag = event.tags.find(t => t[0] === 'p');
+        const recipientPubKey = pTag ? pTag[1] : null;
+        console.log('[Nostr] DM recipient:', recipientPubKey?.slice(0, 12), 'our pubkey:', this.publicKey?.slice(0, 12));
+
+        // Skip our own sent messages (already added locally)
+        if (senderPubKey === this.publicKey) {
+          console.log('[Nostr] Skipping own NIP-04 DM echo:', event.id.slice(0, 16));
+          return;
+        }
+
+        console.log('[Nostr] Attempting decryption...');
         const content = await decryptDM(event.content, senderPubKey, this.privateKey);
+        console.log('[Nostr] Decrypted successfully, content length:', content.length);
 
         this.emit('message', {
           id: event.id,
           from: senderPubKey,
-          to: this.publicKey,
+          to: recipientPubKey || this.publicKey,
           content,
           timestamp: event.created_at * 1000,
           relay,
@@ -552,7 +588,8 @@ export class NostrClient {
           tags: event.tags,
         });
       } catch (error) {
-        console.error('[Nostr] Failed to decrypt NIP-04 DM:', error);
+        console.error('[Nostr] Failed to decrypt NIP-04 DM:', error.message || error);
+        console.error('[Nostr] DM content preview:', event.content?.slice(0, 50));
       }
     }
 
@@ -598,16 +635,28 @@ export class NostrClient {
     }
   }
 
-  subscribeToMessages() {
+  subscribeToMessages(starkPubkey = null) {
+    console.log('[Nostr] ====== subscribeToMessages CALLED ======');
     if (!this.publicKey) {
+      console.log('[Nostr] ERROR: Client not initialized, no publicKey');
       throw new Error('Client not initialized');
     }
 
+    console.log('[Nostr] Nostr transport pubkey:', this.publicKey);
+    console.log('[Nostr] STARK pubkey:', starkPubkey);
+
+    // Build list of pubkeys to subscribe for DMs (both Nostr and STARK if different)
+    const dmPubkeys = [this.publicKey];
+    if (starkPubkey && starkPubkey !== this.publicKey) {
+      dmPubkeys.push(starkPubkey);
+      console.log('[Nostr] Will subscribe to DMs for BOTH pubkeys');
+    }
+
     const filters = [
-      // DMs to us (both NIP-04 and PQ)
+      // DMs to us (both NIP-04 and PQ) - subscribe to ALL our pubkeys
       {
         kinds: [KIND.ENCRYPTED_DM, KIND.PQ_ENCRYPTED_DM],
-        '#p': [this.publicKey],
+        '#p': dmPubkeys,
       },
       // Our sent DMs (both NIP-04 and PQ)
       {
@@ -621,11 +670,16 @@ export class NostrClient {
       },
     ];
 
+    console.log('[Nostr] DM filters:', JSON.stringify(filters.slice(0, 2)));
+
     // Only subscribe to public notes on our own relay (drista.paraxiom.org)
     // This prevents flooding from public relays like damus.io
+    console.log('[Nostr] Connected relays:', Array.from(this.relays.entries()).map(([url, r]) => `${url}:${r.connected}`));
     for (const relay of this.relays.values()) {
+      console.log('[Nostr] Checking relay:', relay.url, 'connected:', relay.connected);
       if (relay.connected) {
         if (relay.url.includes('drista.paraxiom.org')) {
+          console.log('[Nostr] Setting up FULL subscription on drista relay');
           // On our own relay, subscribe to channel messages too
           relay.subscribe([
             ...filters,
@@ -636,6 +690,7 @@ export class NostrClient {
             },
           ], null);
         } else {
+          console.log('[Nostr] Setting up DM-only subscription on:', relay.url);
           // On public relays, only subscribe to DMs
           relay.subscribe(filters, null);
         }

@@ -12,6 +12,10 @@ export function InfoPanel({ identity, starkIdentity, wasmLoaded, qsslIdentity })
   // Fingerprint - prefer QSSL, fallback to STARK, then Nostr
   const fingerprint = qsslIdentity?.fingerprint || identity?.fingerprint || '-';
 
+  // Nostr DM key - this is what users should share for encrypted DMs
+  const nostrDmKey = store.getNostrPublicKey();
+  const dmKeyShort = nostrDmKey ? nostrDmKey.slice(0, 16) : '-';
+
   // Encryption type - QSSL uses full post-quantum cryptography
   let encryption = 'NIP-04 / SECP256K1';
   if (qsslIdentity) {
@@ -37,6 +41,15 @@ export function InfoPanel({ identity, starkIdentity, wasmLoaded, qsslIdentity })
         <div class="lcars-info-item">
           <span class="lcars-label">IDENTITY</span>
           <span class="lcars-value">{fingerprint}</span>
+        </div>
+        <div class="lcars-info-item" title="Share this key for DMs" style="cursor: pointer;" onClick={() => {
+          if (nostrDmKey) {
+            navigator.clipboard.writeText(nostrDmKey);
+            alert('DM Key copied to clipboard!');
+          }
+        }}>
+          <span class="lcars-label">DM KEY 📋</span>
+          <span class="lcars-value">{dmKeyShort}</span>
         </div>
         <div class="lcars-info-item">
           <span class="lcars-label">ENCRYPTION</span>

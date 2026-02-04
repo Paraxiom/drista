@@ -67,7 +67,7 @@ nostr.on('disconnect', ({ url }) => {
 });
 
 nostr.on('message', (msg) => {
-  console.log('[Store] Received message:', msg);
+  console.log('[Store] Received message event:', msg.id?.slice(0,12), 'from:', msg.from?.slice(0,12), 'channelId:', msg.channelId || 'DM');
   handleIncomingMessage(msg);
 });
 
@@ -122,7 +122,18 @@ export async function connectNostr(relays = DEFAULT_RELAYS) {
   const connected = await nostr.connectRelays(relays);
   console.log('[Store] Connected to relays:', connected);
 
-  nostr.subscribeToMessages();
+  // Pass STARK pubkey so DMs addressed to it are also received
+  const starkPubkey = starkIdentity?.pubkeyHex || null;
+  console.log('[Store] About to call subscribeToMessages with STARK pubkey:', starkPubkey?.slice(0, 16));
+  nostr.subscribeToMessages(starkPubkey);
+  console.log('[Store] subscribeToMessages completed');
+
+  // Re-subscribe after a delay to catch any missed DMs
+  setTimeout(() => {
+    console.log('[Store] Re-subscribing to messages after delay...');
+    nostr.subscribeToMessages(starkPubkey);
+  }, 2000);
+
   return connected;
 }
 
@@ -134,6 +145,8 @@ export function disconnectNostr() {
 
 // ── Incoming messages (with IPFS hybrid storage support) ────
 export async function handleIncomingMessage(msg) {
+  console.log('[Store] handleIncomingMessage called, msg.channelId:', msg.channelId, 'msg.from:', msg.from?.slice(0,12));
+
   // Determine channel: use msg.channelId for forum messages, or create DM channel
   let channelId;
 
@@ -156,7 +169,9 @@ export async function handleIncomingMessage(msg) {
   } else {
     // DM - create dm:pubkey channel
     channelId = `dm:${msg.from}`;
+    console.log('[Store] Creating DM channel:', channelId);
     if (!channels.value.find(ch => ch.id === channelId)) {
+      console.log('[Store] Adding new DM channel for:', msg.from.slice(0, 12));
       addChannel({
         id: channelId,
         name: msg.from.slice(0, 12) + '...',
@@ -181,6 +196,11 @@ export async function handleIncomingMessage(msg) {
   }
 
   // Check if this is an IPFS hybrid message
+  // Guard against undefined content (e.g., decryption failed)
+  if (msg.content === undefined || msg.content === null) {
+    console.warn('[Store] Skipping message with undefined content (decryption failed?)');
+    return;
+  }
   let messageContent = msg.content;
   let ipfsCid = null;
   let ipfsVerified = null;
@@ -396,6 +416,40 @@ export async function sendNostrDM(recipientPubKey, messageText, starkSig) {
         relay.publish(event);
       }
     }
+
+    // Add sent message to local store immediately
+    const dmChannelId = `dm:${recipientPubKey}`;
+
+    // Ensure DM channel exists
+    if (!channels.value.find(ch => ch.id === dmChannelId)) {
+      addChannel({
+        id: dmChannelId,
+        name: recipientPubKey.slice(0, 12) + '...',
+        channelType: 'direct',
+        encrypted: true,
+        pqcEnabled: pqDm.hasPqKey(recipientPubKey),
+        unreadCount: 0,
+        nostrPubkey: recipientPubKey,
+      });
+    }
+
+    // Add to messages
+    const sentMessage = {
+      id: event.id,
+      nostrEventId: event.id,
+      content: messageText,
+      from: nostr.publicKey,
+      timestamp: event.created_at * 1000,
+      verified: true,
+      pqEncrypted: pqDm.hasPqKey(recipientPubKey),
+      isSent: true,
+    };
+
+    const old = messages.value[dmChannelId] || [];
+    messages.value = { ...messages.value, [dmChannelId]: [...old, sentMessage] };
+    save();
+
+    console.log('[Store] Added sent DM to local store:', dmChannelId);
 
     return event;
   } catch (error) {
