@@ -43,7 +43,7 @@ export async function initPqDm() {
   await initWasm();
   const wasm = getWasm();
 
-  // Generate fresh ML-KEM-768 keypair
+  // Generate fresh ML-KEM-1024 keypair
   // Note: We regenerate each session for forward secrecy
   // The secret key cannot be safely stored in localStorage
   mlKemKeypair = new wasm.JsMlKemKeyPair();
@@ -209,7 +209,7 @@ export async function fetchPqKey(nostrClient, pubkey) {
     const filter = {
       kinds: [KIND.PQ_KEY],
       authors: [pubkey],
-      '#d': ['ml-kem-768'],
+      '#d': ['ml-kem-1024'],
       limit: 1
     };
 
@@ -390,7 +390,7 @@ export function handlePqKeyEvent(event) {
   const ekTag = event.tags.find(t => t[0] === 'ek');
   const dTag = event.tags.find(t => t[0] === 'd');
 
-  if (dTag && dTag[1] === 'ml-kem-768' && ekTag && ekTag[1]) {
+  if (dTag && dTag[1] === 'ml-kem-1024' && ekTag && ekTag[1]) {
     registerPeerKey(event.pubkey, ekTag[1]);
   }
 }

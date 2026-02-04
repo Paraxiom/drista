@@ -27,7 +27,7 @@ export const KIND = {
   CHANNEL_MESSAGE: 42,
   SEALED_DM: 1059,        // NIP-17
   GIFT_WRAP: 1060,        // NIP-17
-  PQ_ENCRYPTED_DM: 20004, // Post-Quantum encrypted DM (ML-KEM-768 + AES-256-GCM)
+  PQ_ENCRYPTED_DM: 20004, // Post-Quantum encrypted DM (ML-KEM-1024 + AES-256-GCM)
   PQ_KEY: 30078,          // PQ key publication (NIP-33 replaceable, d=ml-kem-1024)
 };
 
@@ -497,7 +497,7 @@ export class NostrClient {
       }
     }
 
-    // Handle PQ-encrypted DMs (post-quantum ML-KEM-768 + AES-256-GCM)
+    // Handle PQ-encrypted DMs (post-quantum ML-KEM-1024 + AES-256-GCM)
     if (event.kind === KIND.PQ_ENCRYPTED_DM) {
       try {
         const senderPubKey = event.pubkey;
@@ -515,7 +515,7 @@ export class NostrClient {
           await pqDm.initPqDm();
         }
 
-        // Decrypt using ML-KEM-768 + AES-256-GCM
+        // Decrypt using ML-KEM-1024 + AES-256-GCM
         const content = await pqDm.decryptPqDm(senderPubKey, event.content);
 
         this.emit('message', {
