@@ -9,6 +9,8 @@ import * as store from './store.js';
 export function ChatView({ identity, starkIdentity, wasmLoaded }) {
   const channel = store.currentChannel.value;
   const msgs = store.currentMessages.value;
+  const sendStatus = store.sendStatus.value;
+  const lastError = store.lastError.value;
   const messagesRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -137,16 +139,32 @@ export function ChatView({ identity, starkIdentity, wasmLoaded }) {
         ))}
       </div>
 
+      {/* Send status feedback */}
+      {sendStatus === 'error' && lastError && (
+        <div class="lcars-chat-error">
+          {lastError.message}
+        </div>
+      )}
+      {sendStatus === 'sending' && (
+        <div class="lcars-chat-sending">
+          Sending...
+        </div>
+      )}
+
       <div class="lcars-chat-input">
         <input
           type="text"
           ref={inputRef}
           placeholder="Type a message..."
-          disabled={!channel}
+          disabled={!channel || sendStatus === 'sending'}
           onKeyPress={onKeyPress}
         />
-        <button class="lcars-button" disabled={!channel} onClick={sendMessage}>
-          SEND
+        <button
+          class="lcars-button"
+          disabled={!channel || sendStatus === 'sending'}
+          onClick={sendMessage}
+        >
+          {sendStatus === 'sending' ? 'SENDING...' : 'SEND'}
         </button>
       </div>
     </section>

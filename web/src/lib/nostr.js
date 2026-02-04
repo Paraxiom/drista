@@ -38,12 +38,18 @@ let pqPublicKey = null;
 // Mapping of Nostr pubkeys to PQ public keys (discovered via metadata or handshake)
 const pqPeerKeys = new Map();
 
-// Default relays — QuantumHarmony validator bridges (NIP-01 over Mesh Forum)
+// Default relays — QuantumHarmony validators + public fallbacks
 // Each relay connects to a different validator node for decentralization
 export const DEFAULT_RELAYS = [
   'wss://drista.paraxiom.org/ws',         // Alice (Montreal) — Primary relay
-  'wss://drista.paraxiom.org/ws-bob',     // Bob (Montreal) — Secondary relay
-  'wss://drista.paraxiom.org/ws-charlie', // Charlie (Toronto) — Tertiary relay
+  'wss://relay.damus.io',                 // Public fallback — high availability
+  'wss://nos.lol',                        // Public fallback — high availability
+];
+
+// Additional relays to try if primary fails
+export const FALLBACK_RELAYS = [
+  'wss://relay.nostr.band',
+  'wss://relay.snort.social',
 ];
 
 /**
@@ -235,7 +241,7 @@ export class RelayConnection {
     this.subscriptions = new Map();
     this.pendingMessages = [];
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
+    this.maxReconnectAttempts = 10; // Increased from 5 for better resilience
     this.listeners = {
       event: [],
       connect: [],

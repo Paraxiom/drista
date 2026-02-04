@@ -28,7 +28,7 @@ pub mod qrng;
 pub mod aead;
 pub mod stark;
 
-// Re-exports for native (preferred when both features enabled)
+// Re-exports for native (takes precedence when both features enabled)
 #[cfg(feature = "native-crypto")]
 pub use pq::{MlKemKeyPair, MlKemPublicKey, MlKemCiphertext, SharedSecret, SphincsKeyPair};
 #[cfg(feature = "native-crypto")]

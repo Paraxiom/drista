@@ -1,0 +1,99 @@
+# Drista E2E Test Workflow for Windmill
+# https://www.windmill.dev/
+#
+# This workflow automates testing of the Drista post-quantum chat application.
+# Run via: windmill flow run drista/e2e-tests
+
+name: drista-e2e-tests
+summary: End-to-end tests for Drista post-quantum messaging
+
+schedule:
+  # Run daily at 6 AM UTC
+  cron: "0 6 * * *"
+  timezone: UTC
+
+# Environment variables available to all scripts
+env:
+  DRISTA_RELAY: "wss://relay.damus.io"
+  DRISTA_CLI_PATH: "/Users/sylvaincormier/QuantumVerseProtocols/drista/target/release/drista"
+  DRISTA_WEB_URL: "http://localhost:3004"
+  TEST_TIMEOUT: "30000"
+
+steps:
+  - id: build_cli
+    name: Build CLI
+    type: bash
+    script: ./scripts/build-cli.sh
+    retry:
+      max_attempts: 2
+      delay: 5s
+
+  - id: test_cli_keygen
+    name: Test CLI Keygen
+    type: bash
+    script: ./scripts/test-cli-keygen.sh
+    depends_on: [build_cli]
+    timeout: 30s
+
+  - id: test_cli_pq_keygen
+    name: Test CLI PQ Keygen
+    type: bash
+    script: ./scripts/test-cli-pq-keygen.sh
+    depends_on: [build_cli]
+    timeout: 30s
+
+  - id: test_crypto_primitives
+    name: Test Crypto Primitives
+    type: deno
+    script: ./scripts/test-crypto-primitives.ts
+    depends_on: [build_cli]
+    timeout: 60s
+
+  - id: test_nip04_roundtrip
+    name: Test NIP-04 Roundtrip
+    type: bash
+    script: ./scripts/test-nip04-roundtrip.sh
+    depends_on: [test_cli_keygen]
+    timeout: 60s
+
+  - id: test_pqdm_roundtrip
+    name: Test PQ-DM Roundtrip
+    type: bash
+    script: ./scripts/test-pqdm-roundtrip.sh
+    depends_on: [test_cli_pq_keygen]
+    timeout: 60s
+
+  - id: test_web_integration
+    name: Test Web Integration
+    type: deno
+    script: ./scripts/test-web-integration.ts
+    depends_on: [test_crypto_primitives]
+    timeout: 120s
+    env:
+      WEB_URL: ${DRISTA_WEB_URL}
+
+  - id: test_cli_web_e2e
+    name: Test CLI to Web E2E
+    type: deno
+    script: ./scripts/test-cli-web-e2e.ts
+    depends_on: [test_pqdm_roundtrip, test_web_integration]
+    timeout: 180s
+
+  - id: report
+    name: Generate Report
+    type: bash
+    script: ./scripts/generate-report.sh
+    depends_on: [test_cli_web_e2e]
+    always_run: true
+
+on_failure:
+  - type: webhook
+    url: ${SLACK_WEBHOOK_URL}
+    payload:
+      text: "Drista E2E tests failed: ${WORKFLOW_RUN_URL}"
+
+on_success:
+  - type: webhook
+    url: ${SLACK_WEBHOOK_URL}
+    payload:
+      text: "Drista E2E tests passed"

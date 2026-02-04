@@ -27,6 +27,8 @@ export const connectedRelays = signal([]);
 export const activeModal = signal(null);      // null|'newDM'|'newGroup'|'settings'|'relayInfo'
 export const ipfsEnabled = signal(true);      // Use IPFS hybrid storage
 export const ipfsStatus = signal('ready');    // 'ready'|'uploading'|'error'
+export const lastError = signal(null);        // { message: string, timestamp: number } | null
+export const sendStatus = signal('idle');     // 'idle'|'sending'|'success'|'error'
 
 // ── Computed ────────────────────────────────────────────────
 export const currentChannel = computed(() =>
@@ -537,6 +539,7 @@ export async function addMessage(channelId, message) {
 
   // Send via Nostr
   if (nostrStatus.value !== 'disconnected') {
+    sendStatus.value = 'sending';
     try {
       let event;
       if (channel?.nostrPubkey) {
@@ -552,11 +555,29 @@ export async function addMessage(channelId, message) {
       if (event) {
         message.nostrEventId = event.id;
         message.sentViaNostr = true;
+        sendStatus.value = 'success';
+        // Clear success status after 2 seconds
+        setTimeout(() => { if (sendStatus.value === 'success') sendStatus.value = 'idle'; }, 2000);
       }
     } catch (error) {
-      console.error('[Store] Failed to send via Nostr, storing locally:', error);
+      console.error('[Store] Failed to send via Nostr:', error);
       message.sentViaNostr = false;
+      sendStatus.value = 'error';
+      lastError.value = {
+        message: `Failed to send message: ${error.message || 'Network error'}`,
+        timestamp: Date.now(),
+      };
+      // Clear error status after 5 seconds
+      setTimeout(() => { if (sendStatus.value === 'error') sendStatus.value = 'idle'; }, 5000);
     }
+  } else {
+    // Not connected - show error
+    sendStatus.value = 'error';
+    lastError.value = {
+      message: 'Not connected to any relay. Message saved locally.',
+      timestamp: Date.now(),
+    };
+    message.sentViaNostr = false;
   }
 
   const old = messages.value[channelId] || [];

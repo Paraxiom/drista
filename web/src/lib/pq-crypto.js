@@ -247,6 +247,9 @@ export async function createPqDmContent(peerId, message, peerPubKeyBase64) {
 
 /**
  * Parse and decrypt a PQ-encrypted Nostr DM
+ * Supports two formats:
+ * - Triple Ratchet: pq1:init:<pubkey>:<kemCT>:<ratchetHeader>:<msgCT>
+ * - Simple (CLI): pq1:init:<pubkey>:<kemCT>:<nonce>:<msgCT> (nonce is 16 bytes base64)
  */
 export async function parsePqDmContent(peerId, content, senderPubKeyBase64) {
   if (!content.startsWith('pq1:')) {
@@ -257,15 +260,26 @@ export async function parsePqDmContent(peerId, content, senderPubKeyBase64) {
   const msgType = parts[1];
 
   if (msgType === 'init') {
-    // New session: pq1:init:theirPubKey:keyCiphertext:header:messageCiphertext
-    const [, , theirPubKey, keyCiphertext, header, ciphertext] = parts;
+    // New session: pq1:init:theirPubKey:keyCiphertext:header_or_nonce:messageCiphertext
+    const [, , theirPubKey, keyCiphertext, headerOrNonce, ciphertext] = parts;
 
+    // Detect format: simple format has a short nonce (16 bytes = ~24 chars base64)
+    // Triple Ratchet header is much larger (contains KEM ciphertext, etc.)
+    const headerBytes = Uint8Array.from(atob(headerOrNonce), c => c.charCodeAt(0));
+
+    if (headerBytes.length <= 16) {
+      // Simple format: direct ML-KEM + AES-GCM (from CLI)
+      console.log('[PQ] Detected simple PQ-DM format (CLI compatible)');
+      return await decryptSimplePqDm(theirPubKey, keyCiphertext, headerOrNonce, ciphertext);
+    }
+
+    // Triple Ratchet format
     // Respond to session if we don't have one
     if (!hasSession(peerId)) {
       await respondToSession(keyCiphertext, peerId);
     }
 
-    const plaintext = await decryptMessage(peerId, header, ciphertext);
+    const plaintext = await decryptMessage(peerId, headerOrNonce, ciphertext);
     return new TextDecoder().decode(plaintext);
 
   } else if (msgType === 'msg') {
@@ -281,6 +295,44 @@ export async function parsePqDmContent(peerId, content, senderPubKeyBase64) {
   }
 
   throw new Error(`Unknown PQ message type: ${msgType}`);
+}
+
+/**
+ * Decrypt a simple PQ-DM (CLI format: ML-KEM + AES-256-GCM, no ratchet)
+ * Format: pq1:init:<senderPubKey>:<kemCiphertext>:<nonce>:<ciphertext>
+ */
+async function decryptSimplePqDm(senderPubKeyBase64, kemCiphertextBase64, nonceBase64, ciphertextBase64) {
+  if (!isWasmReady()) {
+    await initPqCrypto();
+  }
+
+  // Decode components
+  const kemCiphertext = Uint8Array.from(atob(kemCiphertextBase64), c => c.charCodeAt(0));
+  const nonce = Uint8Array.from(atob(nonceBase64), c => c.charCodeAt(0));
+  const ciphertext = Uint8Array.from(atob(ciphertextBase64), c => c.charCodeAt(0));
+
+  // Decapsulate shared secret using our identity keypair
+  const sharedSecretBase64 = identityKeypair.decapsulate(kemCiphertextBase64);
+  const sharedSecret = Uint8Array.from(atob(sharedSecretBase64), c => c.charCodeAt(0));
+
+  // Derive AES key using HKDF (same as CLI: info = "pq-dm-v1")
+  const keyMaterial = await crypto.subtle.importKey('raw', sharedSecret, 'HKDF', false, ['deriveKey']);
+  const aesKey = await crypto.subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode('pq-dm-v1') },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['decrypt']
+  );
+
+  // Decrypt with AES-256-GCM
+  const plaintext = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: nonce },
+    aesKey,
+    ciphertext
+  );
+
+  return new TextDecoder().decode(plaintext);
 }
 
 export default {
