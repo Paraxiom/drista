@@ -2,7 +2,7 @@
  * Drista - Main Application Component (Preact)
  */
 
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useState, useCallback } from 'preact/hooks';
 import { initWasm, isWasmReady, getWasm } from '../lib/wasm.js';
 import { StarkIdentityManager } from '../lib/stark-identity.js';
 import { initQssl, getQsslIdentity, isQsslAvailable } from '../lib/qssl-transport.js';
@@ -18,6 +18,12 @@ export function App() {
   const [qsslIdentity, setQsslIdentity] = useState(null);
   const [wasmLoaded, setWasmLoaded] = useState(false);
   const [statusText, setStatusText] = useState('INITIALIZING');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Close mobile menu when channel is selected
+  const handleChannelSelect = useCallback(() => {
+    setMobileMenuOpen(false);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -161,6 +167,13 @@ export function App() {
         <div class="lcars-elbow lcars-elbow-tl">
           <span class="lcars-sanskrit">दृष्टि</span>
         </div>
+        <button
+          class="mobile-menu-btn"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          style="display: none;"
+        >
+          ☰
+        </button>
         <div class="lcars-bar lcars-header-bar">
           <span class="lcars-title">DRISTA — The Observer — PQC DECENTRALIZED CHAT</span>
         </div>
@@ -171,9 +184,14 @@ export function App() {
         </div>
       </header>
 
+      {/* Mobile menu overlay */}
+      {mobileMenuOpen && (
+        <div class="mobile-overlay" onClick={() => setMobileMenuOpen(false)} />
+      )}
+
       {/* Main content */}
       <main class="lcars-main">
-        <ChannelList />
+        <ChannelList mobileOpen={mobileMenuOpen} onChannelSelect={handleChannelSelect} />
         <ChatView identity={identity} starkIdentity={starkIdentity} wasmLoaded={wasmLoaded} />
         <InfoPanel identity={identity} starkIdentity={starkIdentity} wasmLoaded={wasmLoaded} qsslIdentity={qsslIdentity} />
       </main>

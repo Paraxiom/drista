@@ -4,12 +4,18 @@
 
 import * as store from './store.js';
 
-export function ChannelList() {
+export function ChannelList({ mobileOpen, onChannelSelect }) {
   const channelList = store.channels.value;
   const currentId = store.currentChannelId.value;
 
+  const handleChannelClick = (ch) => {
+    store.setCurrentChannel(ch.id);
+    store.markRead(ch.id);
+    if (onChannelSelect) onChannelSelect();
+  };
+
   return (
-    <aside class="lcars-sidebar">
+    <aside class={`lcars-sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
       <div class="lcars-bar lcars-sidebar-header">CHANNELS</div>
       <div class="lcars-sidebar-content">
         {channelList.map(ch => (
@@ -17,18 +23,15 @@ export function ChannelList() {
             key={ch.id}
             channel={ch}
             active={ch.id === currentId}
-            onClick={() => {
-              store.setCurrentChannel(ch.id);
-              store.markRead(ch.id);
-            }}
+            onClick={() => handleChannelClick(ch)}
           />
         ))}
       </div>
       <div class="lcars-bar lcars-sidebar-footer">
-        <button class="lcars-button lcars-small" onClick={() => { store.activeModal.value = 'newDM'; }}>
+        <button class="lcars-button lcars-small" onClick={() => { store.activeModal.value = 'newDM'; onChannelSelect?.(); }}>
           NEW DM
         </button>
-        <button class="lcars-button lcars-small" onClick={() => { store.activeModal.value = 'newGroup'; }}>
+        <button class="lcars-button lcars-small" onClick={() => { store.activeModal.value = 'newGroup'; onChannelSelect?.(); }}>
           NEW GROUP
         </button>
       </div>
