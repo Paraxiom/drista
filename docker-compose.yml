@@ -10,7 +10,7 @@
 services:
   drista:
     build: .
-    image: paraxiom/drista:latest
+    image: sylvaincormier/drista:latest
     ports:
       - "3000:3000"
     environment:

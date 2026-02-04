@@ -30,7 +30,7 @@ brew install paraxiom/tap/drista
 
 ```bash
 # Quick start
-docker run -p 3000:3000 paraxiom/drista
+docker run -p 3000:3000 sylvaincormier/drista
 
 # Or with docker-compose
 git clone https://github.com/Paraxiom/drista.git
