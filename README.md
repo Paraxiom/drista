@@ -300,11 +300,27 @@ node --experimental-wasm-modules tests/pq-dm-extended.test.js
 
 ### Build Desktop App
 
+Requires: Rust 1.70+, Tauri CLI 2.0
+
 ```bash
-cd desktop/src-tauri
+# Build web frontend first
+cd web && npm install && npm run build
+
+# Build desktop app
+cd ../desktop/src-tauri
+cargo install tauri-cli  # if not installed
 cargo tauri build
-# Binary in target/release/bundle/
+
+# Output locations:
+# macOS: target/release/bundle/macos/Drista.app
+# Windows: target/release/bundle/msi/
+# Linux: target/release/bundle/deb/ or appimage/
 ```
+
+Features:
+- Post-quantum encryption (same as web)
+- BLE mesh networking (offline P2P)
+- Native performance
 
 ### Run Your Own Validator
 

@@ -1,10 +1,13 @@
-//! Quantum Communicator Desktop App (Tauri)
+//! Drista — दृष्टा Desktop App (Tauri 2.0)
+//!
+//! Post-quantum secure chat for Paraxiom collaborators.
 //!
 //! Features:
-//! - Post-quantum encryption (ML-KEM-1024)
-//! - BLE mesh networking (BitChat compatible)
+//! - Post-quantum encryption (ML-KEM-1024 + AES-256-GCM)
+//! - Dual signatures (SLH-DSA + Schnorr)
+//! - BLE mesh networking (offline P2P)
 //! - STARK identity proofs
-//! - Nostr transport fallback
+//! - Nostr relay transport
 
 #![cfg_attr(
     all(not(debug_assertions), target_os = "windows"),

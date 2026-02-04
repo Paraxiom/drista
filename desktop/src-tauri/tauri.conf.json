@@ -1,18 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.0-rc",
-  "productName": "Quantum Communicator",
+  "productName": "Drista",
   "version": "0.1.0",
-  "identifier": "com.quantumharmony.communicator",
+  "identifier": "org.paraxiom.drista",
   "build": {
     "beforeDevCommand": "cd ../../web && npm run dev",
-    "devUrl": "http://localhost:3000",
+    "devUrl": "http://localhost:3004",
     "beforeBuildCommand": "",
     "frontendDist": "../../web/dist"
   },
   "app": {
     "windows": [
       {
-        "title": "Quantum Communicator",
+        "title": "Drista — दृष्टा",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
