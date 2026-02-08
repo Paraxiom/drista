@@ -2,7 +2,7 @@
  * Drista - Main Application Component (Preact)
  */
 
-import { useEffect, useState, useCallback } from 'preact/hooks';
+import { useEffect, useState, useRef } from 'preact/hooks';
 import { initWasm, isWasmReady, getWasm } from '../lib/wasm.js';
 import { StarkIdentityManager } from '../lib/stark-identity.js';
 import { initQssl, getQsslIdentity, isQsslAvailable } from '../lib/qssl-transport.js';
@@ -16,30 +16,9 @@ export function App() {
   const [identity, setIdentity] = useState(null);
   const [starkIdentity, setStarkIdentity] = useState(null);
   const [qsslIdentity, setQsslIdentity] = useState(null);
-  const [slhDsaIdentity, setSlhDsaIdentity] = useState(null);
   const [wasmLoaded, setWasmLoaded] = useState(false);
   const [statusText, setStatusText] = useState('INITIALIZING');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Close mobile menu when channel is selected
-  const handleChannelSelect = useCallback(() => {
-    setMobileMenuOpen(false);
-  }, []);
-
-  // Admin keyboard shortcut: Ctrl+Shift+K to clear messages
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'K') {
-        e.preventDefault();
-        if (confirm('Clear all local messages? (Messages still exist on relay)')) {
-          store.clearAllMessages();
-          alert('Messages cleared from local view');
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   useEffect(() => {
     (async () => {
@@ -124,29 +103,17 @@ export function App() {
             await store.publishPqKey();
             console.log('[App] PQ-DM initialized and key published');
           } catch (error) {
-            console.warn('[App] PQ-DM init failed:', error);
-          }
-        }
-
-        // Step 5: Initialize SLH-DSA (post-quantum signatures)
-        if (wasm) {
-          try {
-            setStatusText('SLH-DSA INIT');
-            const slhDsa = store.initSlhDsa();
-            if (slhDsa) {
-              setSlhDsaIdentity({
-                publicKeyBase64: slhDsa.publicKeyBase64,
-                fingerprint: slhDsa.publicKeyBase64.slice(0, 16),
-              });
-              console.log('[App] SLH-DSA initialized:', slhDsa.publicKeyBase64.slice(0, 16) + '...');
-            }
-          } catch (error) {
-            console.warn('[App] SLH-DSA init failed:', error);
+            console.warn('[App] PQ-DM init failed, falling back to NIP-04:', error);
           }
         }
 
         setStatusText('CONNECTED');
         console.log('[App] Initialized, identity type:', id.type, 'fingerprint:', id.fingerprint);
+
+        // Auto-select #drista channel if none selected (important for mobile)
+        if (!store.currentChannelId.value) {
+          store.setCurrentChannel('#drista');
+        }
       } catch (error) {
         console.error('[App] Failed to initialize Nostr:', error);
         setStatusText('OFFLINE');
@@ -168,7 +135,6 @@ export function App() {
     'STARK INIT': 'var(--lcars-mauve)',
     'NOSTR TRANSPORT': 'var(--lcars-peach)',
     'PQ-DM INIT': 'linear-gradient(135deg, #7ecfdf 0%, #5ab8c8 100%)',
-    'SLH-DSA INIT': 'linear-gradient(135deg, #9b6dff 0%, #7b4ddf 100%)',
     'ERROR': 'var(--lcars-rose)',
   };
 
@@ -201,15 +167,15 @@ export function App() {
         <div class="lcars-elbow lcars-elbow-tl">
           <span class="lcars-sanskrit">दृष्टि</span>
         </div>
-        <button
-          class="mobile-menu-btn"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          style="display: none;"
-        >
-          ☰
-        </button>
         <div class="lcars-bar lcars-header-bar">
-          <span class="lcars-title">DRISTA — The Observer — DECENTRALIZED CHAT WITH HYBRID PQC</span>
+          <button
+            class="lcars-mobile-menu-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle channel menu"
+          >
+            ☰
+          </button>
+          <span class="lcars-title">DRISTA — The Observer — PQC DECENTRALIZED CHAT</span>
         </div>
         <div class="lcars-button-group">
           <button class="lcars-button" onClick={() => { store.activeModal.value = 'settings'; }}>SETTINGS</button>
@@ -218,16 +184,44 @@ export function App() {
         </div>
       </header>
 
-      {/* Mobile menu overlay */}
+      {/* Mobile channel menu */}
       {mobileMenuOpen && (
-        <div class="mobile-overlay" onClick={() => setMobileMenuOpen(false)} />
+        <div class="mobile-channel-menu">
+          <div class="mobile-channel-menu-header">
+            <span>Channels</span>
+            <button onClick={() => setMobileMenuOpen(false)}>×</button>
+          </div>
+          {store.channels.value.map(ch => (
+            <button
+              key={ch.id}
+              class={`mobile-channel-item ${store.currentChannelId.value === ch.id ? 'active' : ''}`}
+              onClick={() => { store.setCurrentChannel(ch.id); setMobileMenuOpen(false); }}
+            >
+              {ch.channelType === 'direct' ? '🔒 ' : '# '}{ch.name}
+            </button>
+          ))}
+          <div class="mobile-menu-actions">
+            <button
+              class="mobile-action-btn"
+              onClick={() => { store.activeModal.value = 'newDM'; setMobileMenuOpen(false); }}
+            >
+              + New DM
+            </button>
+            <button
+              class="mobile-action-btn"
+              onClick={() => { store.activeModal.value = 'newGroup'; setMobileMenuOpen(false); }}
+            >
+              + New Channel
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Main content */}
       <main class="lcars-main">
-        <ChannelList mobileOpen={mobileMenuOpen} onChannelSelect={handleChannelSelect} />
+        <ChannelList />
         <ChatView identity={identity} starkIdentity={starkIdentity} wasmLoaded={wasmLoaded} />
-        <InfoPanel identity={identity} starkIdentity={starkIdentity} wasmLoaded={wasmLoaded} qsslIdentity={qsslIdentity} slhDsaIdentity={slhDsaIdentity} />
+        <InfoPanel identity={identity} starkIdentity={starkIdentity} wasmLoaded={wasmLoaded} qsslIdentity={qsslIdentity} />
       </main>
 
       {/* Footer */}

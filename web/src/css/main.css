@@ -78,6 +78,9 @@
 html, body {
   height: 100%;
   overflow: hidden;
+  /* iOS fix: prevent bounce scroll */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 body {
@@ -97,8 +100,15 @@ body {
 
 #app {
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height - works better on iOS */
   display: flex;
   flex-direction: column;
+}
+
+@supports (-webkit-touch-callout: none) {
+  #app {
+    height: -webkit-fill-available;
+  }
 }
 
 /* Custom scrollbar */

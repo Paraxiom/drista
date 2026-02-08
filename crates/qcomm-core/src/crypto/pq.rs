@@ -147,9 +147,10 @@ impl MlKemKeyPair {
         if seed.len() < 64 {
             return Err(Error::InsufficientEntropy);
         }
-        // For seeded generation, we'd need a deterministic variant
-        // For now, fall back to random generation
-        // TODO: Implement deterministic keygen when pqcrypto supports it
+        // NOTE: pqcrypto does not yet expose deterministic keygen for ML-KEM.
+        // The seed parameter is accepted for forward-compatibility with QRNG
+        // entropy sources. Until upstream support lands, we fall back to the
+        // OS CSPRNG which already meets NIST security requirements.
         Self::generate()
     }
 
@@ -238,7 +239,10 @@ impl SphincsKeyPair {
         if seed.len() < 64 {
             return Err(Error::InsufficientEntropy);
         }
-        // TODO: Implement deterministic keygen when pqcrypto supports it
+        // NOTE: pqcrypto does not yet expose deterministic keygen for SPHINCS+.
+        // The seed parameter is accepted for forward-compatibility with QRNG
+        // entropy sources. Until upstream support lands, we fall back to the
+        // OS CSPRNG which already meets NIST security requirements.
         Self::generate()
     }
 
