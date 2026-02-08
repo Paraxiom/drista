@@ -326,4 +326,69 @@ mod tests {
         // Both parties should derive the same shared secret
         assert_eq!(alice_ss.as_bytes(), bob_ss.as_bytes());
     }
+
+    #[test]
+    fn test_mlkem_generate_from_seed_valid() {
+        // A 64-byte seed should succeed (falls back to random keygen)
+        let seed = vec![0xAB; 64];
+        let kp = MlKemKeyPair::generate_from_seed(&seed).unwrap();
+        assert_eq!(kp.public_key().as_bytes().len(), MLKEM_PUBLIC_KEY_SIZE);
+
+        // Generated key should still work for encapsulate/decapsulate
+        let (ct, ss1) = kp.public_key().encapsulate().unwrap();
+        let ss2 = kp.decapsulate(&ct).unwrap();
+        assert_eq!(ss1.as_bytes(), ss2.as_bytes());
+    }
+
+    #[test]
+    fn test_mlkem_generate_from_seed_too_short() {
+        // Seeds shorter than 64 bytes should return InsufficientEntropy
+        let short_seed = vec![0xAB; 32];
+        let result = MlKemKeyPair::generate_from_seed(&short_seed);
+        assert!(result.is_err());
+
+        let empty_seed: Vec<u8> = vec![];
+        let result = MlKemKeyPair::generate_from_seed(&empty_seed);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sphincs_generate_from_seed_valid() {
+        // A 64-byte seed should succeed (falls back to random keygen)
+        let seed = vec![0xCD; 64];
+        let kp = SphincsKeyPair::generate_from_seed(&seed).unwrap();
+        assert_eq!(kp.public_key().as_bytes().len(), SPHINCS_PUBLIC_KEY_SIZE);
+
+        // Generated key should still work for sign/verify
+        let message = b"test message for seeded keygen";
+        let signature = kp.sign(message).unwrap();
+        assert!(kp.public_key().verify(message, &signature).unwrap());
+    }
+
+    #[test]
+    fn test_sphincs_generate_from_seed_too_short() {
+        // Seeds shorter than 64 bytes should return InsufficientEntropy
+        let short_seed = vec![0xCD; 63];
+        let result = SphincsKeyPair::generate_from_seed(&short_seed);
+        assert!(result.is_err());
+
+        let empty_seed: Vec<u8> = vec![];
+        let result = SphincsKeyPair::generate_from_seed(&empty_seed);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mlkem_generate_from_seed_boundary() {
+        // Exactly 64 bytes should succeed
+        let seed_64 = vec![0xFF; 64];
+        assert!(MlKemKeyPair::generate_from_seed(&seed_64).is_ok());
+
+        // 63 bytes should fail
+        let seed_63 = vec![0xFF; 63];
+        assert!(MlKemKeyPair::generate_from_seed(&seed_63).is_err());
+
+        // Larger than 64 bytes should also succeed
+        let seed_128 = vec![0xFF; 128];
+        assert!(MlKemKeyPair::generate_from_seed(&seed_128).is_ok());
+    }
 }
